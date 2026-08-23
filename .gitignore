@@ -1,0 +1,11 @@
+node_modules
+dist
+.env
+.env.local
+*.local
+.DS_Store
+
+# Матеріали бекенду, які лежать у корені лише для довідки
+TZ-frontend.md
+school_meals_schema.sql
+accounts-edge-function.ts
