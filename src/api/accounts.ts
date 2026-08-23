@@ -1,12 +1,16 @@
-import { SUPABASE_URL, supabase } from '@/lib/supabase'
+import { FunctionsFetchError, FunctionsHttpError, FunctionsRelayError } from '@supabase/supabase-js'
+import { supabase } from '@/lib/supabase'
 import type { UserRole } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 //  Edge Function `accounts` — єдина точка керування акаунтами.
 //
-//  ⚠ Паролі повертаються рівно один раз і ніде не зберігаються: ні в стані
-//  надовго, ні в localStorage, ні в базі. Показати їх треба одразу, інакше
+//  ⚠ Паролі повертаються рівно один раз і ніде не зберігаються: ні в базі,
+//  ні в кеші запитів, ні в localStorage. Показати їх треба одразу, інакше
 //  залишиться тільки скинути наново.
+//
+//  Виклик через functions.invoke: токен сесії підставляється автоматично,
+//  тож заголовок Authorization не доводиться збирати вручну.
 // ---------------------------------------------------------------------------
 
 export interface IssuedLogin {
@@ -32,33 +36,32 @@ export interface PasswordReset {
   password: string
 }
 
+/** Витягує людський текст із відповіді функції, яка повернула помилку. */
+async function describeError(error: unknown): Promise<string> {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = (await error.context.json()) as { error?: string }
+      if (body?.error) return body.error
+    } catch {
+      // Тіло не JSON — падаємо на загальний текст нижче.
+    }
+    if (error.context.status === 401) return 'Сесія застаріла. Увійдіть ще раз.'
+    if (error.context.status === 403) return 'Недостатньо прав для цієї дії.'
+    return 'Сервер не зміг виконати дію з акаунтами.'
+  }
+
+  if (error instanceof FunctionsRelayError || error instanceof FunctionsFetchError) {
+    return 'Немає зв’язку з сервером. Спробуйте ще раз.'
+  }
+
+  return (error as Error)?.message || 'Не вдалося виконати дію з акаунтами.'
+}
+
 async function callAccounts<T>(body: Record<string, unknown>): Promise<T> {
-  const { data: sessionData } = await supabase.auth.getSession()
-  const token = sessionData.session?.access_token
-  if (!token) throw new Error('Сесія застаріла. Увійдіть ще раз.')
-
-  let response: Response
-  try {
-    response = await fetch(`${SUPABASE_URL}/functions/v1/accounts`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    })
-  } catch {
-    throw new Error('Немає зв’язку з сервером. Спробуйте ще раз.')
-  }
-
-  const payload = (await response.json().catch(() => null)) as
-    | (T & { error?: string })
-    | null
-
-  if (!response.ok || !payload) {
-    throw new Error(payload?.error ?? 'Сервер не зміг виконати дію з акаунтами.')
-  }
-  return payload
+  const { data, error } = await supabase.functions.invoke<T>('accounts', { body })
+  if (error) throw new Error(await describeError(error))
+  if (!data) throw new Error('Сервер повернув порожню відповідь.')
+  return data
 }
 
 /** Видати логіни учням, які вже є в реєстрі класу (до 60 за раз). */
@@ -80,6 +83,10 @@ export function createStaff(
   })
 }
 
+/**
+ * Скинути пароль. Єдиний шлях відновлення доступу: логіни синтетичні,
+ * пошта на них не ходить, тож «відновити через email» не існує.
+ */
 export function resetPassword(profileId: string): Promise<PasswordReset> {
   return callAccounts<PasswordReset>({ action: 'reset_password', profile_id: profileId })
 }

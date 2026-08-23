@@ -16,6 +16,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
+import { Checkbox } from '@/components/ui/checkbox'
+import { CredentialsDialog } from '@/components/common/CredentialsDialog'
+import { useCredentialsFlow } from '@/hooks/useCredentialsFlow'
 import {
   Table,
   TableBody,
@@ -43,6 +46,8 @@ export default function ClassRosterPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [selected, setSelected] = useState<Student | null>(null)
   const [day, setDay] = useState<string | null>(null)
+  const [checked, setChecked] = useState<string[]>([])
+  const credentials = useCredentialsFlow()
 
   const activeDay = day ?? days[0]?.menu_date ?? null
 
@@ -75,6 +80,28 @@ export default function ClassRosterPage() {
         student.first_name.toLowerCase().includes(term),
     )
   }, [students, search])
+
+  // Логін можна видати лише тому, у кого його ще немає.
+  const selectable = visible.filter((student) => student.is_active && !student.profile_id)
+  const checkedSet = new Set(checked)
+  const selectedWithoutLogin = selectable.filter((student) => checkedSet.has(student.id))
+
+  const toggleAll = (value: boolean) => {
+    setChecked(value ? selectable.map((student) => student.id) : [])
+  }
+
+  const issueForSelected = () => {
+    const names = new Map(
+      selectedWithoutLogin.map((student) => [
+        student.id,
+        fullName(student.last_name, student.first_name),
+      ]),
+    )
+    void credentials.issue(
+      selectedWithoutLogin.map((student) => student.id),
+      names,
+    ).then(() => setChecked([]))
+  }
 
   if (classPending) return <LoadingState />
   if (classError) return <ErrorState error={classError} />
@@ -112,6 +139,17 @@ export default function ClassRosterPage() {
                 { header: 'У реєстрі', value: (s) => s.is_active },
               ]}
             />
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={selectedWithoutLogin.length === 0 || credentials.busy}
+              onClick={issueForSelected}
+            >
+              <KeyRound className="size-4" aria-hidden />
+              {selectedWithoutLogin.length > 0
+                ? `Видати логіни (${selectedWithoutLogin.length})`
+                : 'Видати логіни'}
+            </Button>
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" aria-hidden />
               Додати учня
@@ -191,6 +229,14 @@ export default function ClassRosterPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    aria-label="Обрати всіх без логіна"
+                    disabled={selectable.length === 0}
+                    checked={selectable.length > 0 && checked.length === selectable.length}
+                    onCheckedChange={(value) => toggleAll(value === true)}
+                  />
+                </TableHead>
                 <TableHead>Учень</TableHead>
                 <TableHead>Пільга</TableHead>
                 <TableHead>Логін</TableHead>
@@ -206,6 +252,21 @@ export default function ClassRosterPage() {
                   className={student.is_active ? 'cursor-pointer' : 'cursor-pointer opacity-60'}
                   onClick={() => setSelected(student)}
                 >
+                  <TableCell onClick={(event) => event.stopPropagation()}>
+                    {student.is_active && !student.profile_id ? (
+                      <Checkbox
+                        aria-label={`Обрати ${student.last_name}`}
+                        checked={checkedSet.has(student.id)}
+                        onCheckedChange={(value) =>
+                          setChecked((current) =>
+                            value === true
+                              ? [...current, student.id]
+                              : current.filter((id) => id !== student.id),
+                          )
+                        }
+                      />
+                    ) : null}
+                  </TableCell>
                   <TableCell className="font-medium">
                     {fullName(student.last_name, student.first_name)}
                     {student.is_active ? null : (
@@ -248,7 +309,19 @@ export default function ClassRosterPage() {
         </div>
       ) : null}
 
+      <p className="text-sm text-muted-foreground">
+        Логіни потрібні лише тим, хто замовлятиме сам. За решту замовляєте ви —
+        це нормальний, підтримуваний стан.
+      </p>
+
       <AddStudentDialog open={addOpen} onOpenChange={setAddOpen} classId={myClass.id} />
+
+      <CredentialsDialog
+        credentials={credentials.credentials}
+        title={credentials.title}
+        skipped={credentials.skipped}
+        onClose={credentials.close}
+      />
       <StudentCardDialog student={selected} onOpenChange={() => setSelected(null)} />
     </div>
   )

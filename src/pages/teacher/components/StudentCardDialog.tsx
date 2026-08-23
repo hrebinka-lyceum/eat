@@ -20,6 +20,8 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ErrorState } from '@/components/common/states'
+import { CredentialsDialog } from '@/components/common/CredentialsDialog'
+import { useCredentialsFlow } from '@/hooks/useCredentialsFlow'
 import type { Student } from '@/types/database'
 
 /**
@@ -41,6 +43,7 @@ export function StudentCardDialog({
   const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmRetire, setConfirmRetire] = useState(false)
+  const credentials = useCredentialsFlow()
 
   useEffect(() => {
     if (!student) return
@@ -95,6 +98,18 @@ export function StudentCardDialog({
 
   const lastLog = logQuery.data?.[0] ?? null
 
+  // Вікно з паролем показуємо поверх картки: закривати картку не треба,
+  // а пароль не має загубитися через випадкове закриття.
+  if (credentials.credentials) {
+    return (
+      <CredentialsDialog
+        credentials={credentials.credentials}
+        title={credentials.title}
+        onClose={credentials.close}
+      />
+    )
+  }
+
   return (
     <Dialog open onOpenChange={onOpenChange}>
       <DialogContent>
@@ -107,12 +122,24 @@ export function StudentCardDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
             {student.profile_id ? (
-              <Badge variant="secondary">
-                <KeyRound className="size-3" aria-hidden />
-                Має логін
-              </Badge>
+              <>
+                <Badge variant="secondary">
+                  <KeyRound className="size-3" aria-hidden />
+                  Має логін
+                </Badge>
+                {/* Єдиний шлях відновлення доступу: пошта на цих логінах
+                    синтетична, «відновити через email» не існує. */}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={credentials.busy}
+                  onClick={() => void credentials.reset(student.profile_id!)}
+                >
+                  {credentials.busy ? 'Скидаємо…' : 'Скинути пароль'}
+                </Button>
+              </>
             ) : (
               <span className="text-muted-foreground">
                 Логіна немає — замовлення за нього робите ви. Це нормальний стан.
