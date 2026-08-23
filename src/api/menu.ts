@@ -22,16 +22,14 @@ export interface MenuItemPlain {
   dishes: Pick<Dish, 'id' | 'name' | 'category'>
 }
 
-export async function listMenuDays(from: string, to: string): Promise<MenuDay[]> {
-  return unwrap(
-    await supabase
-      .from('menu_days')
-      .select('*')
-      .gte('menu_date', from)
-      .lte('menu_date', to)
-      .order('menu_date'),
-    'Не вдалося отримати дні меню.',
-  )
+export async function listMenuDays(
+  from: string,
+  to: string,
+  opts: { status?: MenuStatus } = {},
+): Promise<MenuDay[]> {
+  let query = supabase.from('menu_days').select('*').gte('menu_date', from).lte('menu_date', to)
+  if (opts.status) query = query.eq('status', opts.status)
+  return unwrap(await query.order('menu_date'), 'Не вдалося отримати дні меню.')
 }
 
 export async function getMenuDay(menuDate: string): Promise<MenuDay | null> {
@@ -178,17 +176,18 @@ export async function listMenuItemsPlain(menuDate: string): Promise<MenuItemPlai
   ) as unknown as MenuItemPlain[]
 }
 
-/** Те саме за період — щоб не робити запит на кожен день окремо. */
-export async function listMenuItemsPlainRange(
-  from: string,
-  to: string,
-): Promise<MenuItemPlain[]> {
+/**
+ * Те саме для набору днів. Саме набору, а не періоду: керівнику показуємо
+ * лише опубліковані дні, тож і склад читаємо тільки для них — чернетка
+ * не має доходити до клієнта навіть у мережевій відповіді.
+ */
+export async function listMenuItemsPlainForDates(dates: string[]): Promise<MenuItemPlain[]> {
+  if (dates.length === 0) return []
   return unwrap(
     await supabase
       .from('menu_items')
       .select('id, menu_date, dish_id, dishes(id, name, category)')
-      .gte('menu_date', from)
-      .lte('menu_date', to)
+      .in('menu_date', dates)
       .order('menu_date'),
     'Не вдалося отримати меню.',
   ) as unknown as MenuItemPlain[]

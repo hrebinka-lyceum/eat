@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { listMenuDays, listMenuItemsPlainRange, type MenuItemPlain } from '@/api/menu'
+import { listMenuDays, listMenuItemsPlainForDates, type MenuItemPlain } from '@/api/menu'
 import { qk } from '@/lib/queryKeys'
 import { shiftIso } from '@/lib/dates'
 import {
@@ -14,7 +14,6 @@ import { csvFilename } from '@/lib/csv'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const DAYS_AHEAD = 13
@@ -22,7 +21,12 @@ const DAYS_AHEAD = 13
 /**
  * Меню на найближчі дні, лише перегляд.
  *
- * Цін тут немає навіть у запиті: listMenuItemsPlainRange їх не читає.
+ * Тільки опубліковані дні. RLS дозволяє керівнику бачити й чернетки, але
+ * показувати їх немає сенсу: склад чернетки ще змінюється, а замовити на
+ * неопублікований день керівник однаково не зможе — is_before_cutoff()
+ * вимагає published. Меню в роботі — справа їдальні та адміністрації.
+ *
+ * Цін тут немає навіть у запиті: listMenuItemsPlainForDates їх не читає.
  * Довідник страв сервер віддає всім, тож не показати ціну — робота фронтенду.
  */
 export default function TeacherMenuPage() {
@@ -30,13 +34,16 @@ export default function TeacherMenuPage() {
   const to = shiftIso(from, DAYS_AHEAD)
 
   const daysQuery = useQuery({
-    queryKey: qk.menuDays(from, to),
-    queryFn: () => listMenuDays(from, to),
+    queryKey: qk.menuDays(from, to, 'published'),
+    queryFn: () => listMenuDays(from, to, { status: 'published' }),
   })
 
+  const dates = useMemo(() => (daysQuery.data ?? []).map((day) => day.menu_date), [daysQuery.data])
+
   const itemsQuery = useQuery({
-    queryKey: qk.menuItemsPlainRange(from, to),
-    queryFn: () => listMenuItemsPlainRange(from, to),
+    queryKey: qk.menuItemsPlainForDates(dates),
+    queryFn: () => listMenuItemsPlainForDates(dates),
+    enabled: daysQuery.isSuccess,
   })
 
   const byDate = useMemo(() => {
@@ -53,7 +60,6 @@ export default function TeacherMenuPage() {
     return (daysQuery.data ?? []).flatMap((day) =>
       (byDate.get(day.menu_date) ?? []).map((item) => ({
         menu_date: day.menu_date,
-        status: day.status,
         category: item.dishes.category,
         name: item.dishes.name,
       })),
@@ -61,20 +67,19 @@ export default function TeacherMenuPage() {
   }, [daysQuery.data, byDate])
 
   const days = daysQuery.data ?? []
-  const loading = daysQuery.isPending || itemsQuery.isPending
+  const loading = daysQuery.isPending || (daysQuery.isSuccess && dates.length > 0 && itemsQuery.isPending)
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Меню"
-        description="Найближчі дні. Склад на неопублікованих днях ще може змінитися."
+        description="Опубліковані дні на найближчі два тижні."
         actions={
           <ExportButton
             rows={csvRows}
             filename={csvFilename('меню')}
             columns={[
               { header: 'Дата', value: (r) => r.menu_date },
-              { header: 'Стан дня', value: (r) => (r.status === 'published' ? 'опубліковано' : 'чернетка') },
               { header: 'Категорія', value: (r) => CATEGORY_LABELS[r.category] },
               { header: 'Страва', value: (r) => r.name },
             ]}
@@ -88,8 +93,8 @@ export default function TeacherMenuPage() {
 
       {!loading && days.length === 0 ? (
         <EmptyState
-          title="Меню на найближчі два тижні ще немає"
-          hint="Його складає працівник їдальні. Загляньте сюди пізніше."
+          title="Опублікованого меню на найближчі два тижні немає"
+          hint="Меню складає працівник їдальні. Дні з’являються тут після публікації."
         />
       ) : null}
 
@@ -104,21 +109,14 @@ export default function TeacherMenuPage() {
           return (
             <Card key={day.menu_date}>
               <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-base">{formatDateWithWeekday(day.menu_date)}</CardTitle>
-                  <Badge variant={day.status === 'published' ? 'default' : 'secondary'}>
-                    {day.status === 'published' ? 'Опубліковано' : 'Ще не опубліковано'}
-                  </Badge>
-                </div>
-                {day.status === 'published' ? (
-                  <p className="text-sm text-muted-foreground">
-                    Замовлення приймаються до {formatCutoff(day.cutoff_at)}
-                  </p>
-                ) : null}
+                <CardTitle className="text-base">{formatDateWithWeekday(day.menu_date)}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Замовлення приймаються до {formatCutoff(day.cutoff_at)}
+                </p>
               </CardHeader>
               <CardContent>
                 {groups.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Страв ще не додано.</p>
+                  <p className="text-sm text-muted-foreground">Страв на цей день немає.</p>
                 ) : (
                   <div className="space-y-3">
                     {groups.map((group) => (
