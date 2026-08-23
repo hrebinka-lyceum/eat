@@ -96,7 +96,9 @@ export function CredentialsDialog({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="max-w-2xl"
+        // 42rem, але ніколи ширше за екран мінус поля: інакше на вузьких
+        // вікнах панель упирається в краї без відступу.
+        className="sm:max-w-[min(42rem,calc(100%-2rem))]"
         onEscapeKeyDown={(event) => event.preventDefault()}
         onInteractOutside={(event) => event.preventDefault()}
       >
@@ -108,7 +110,7 @@ export function CredentialsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <Alert>
+        <Alert className="min-w-0">
           <TriangleAlert className="size-4" aria-hidden />
           <AlertTitle>Паролі показуються один раз</AlertTitle>
           <AlertDescription>
@@ -117,7 +119,7 @@ export function CredentialsDialog({
           </AlertDescription>
         </Alert>
 
-        <div className="max-h-72 overflow-y-auto rounded-lg border">
+        <div className="max-h-72 min-w-0 overflow-y-auto rounded-lg border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -129,7 +131,7 @@ export function CredentialsDialog({
             <TableBody>
               {credentials.map((item) => (
                 <TableRow key={`${item.full_name}-${item.password}`}>
-                  <TableCell>{item.full_name}</TableCell>
+                  <TableCell className="whitespace-nowrap">{item.full_name}</TableCell>
                   {showLogin ? (
                     <TableCell className="font-mono text-xs">{item.login}</TableCell>
                   ) : null}
@@ -141,7 +143,7 @@ export function CredentialsDialog({
         </div>
 
         {skipped && skipped.length > 0 ? (
-          <div className="rounded-lg border border-dashed p-3 text-sm">
+          <div className="min-w-0 rounded-lg border border-dashed p-3 text-sm">
             <p className="font-medium">Пропущено</p>
             <ul className="mt-1 space-y-0.5 text-muted-foreground">
               {skipped.map((item) => (
@@ -153,8 +155,11 @@ export function CredentialsDialog({
           </div>
         ) : null}
 
-        <DialogFooter className="sm:justify-between">
-          <div className="flex gap-2">
+        {/* flex-col, а не типовий flex-col-reverse: на телефоні «закрити»
+            не має стояти перед «скопіювати» — це вікно закривають один раз
+            і назавжди. */}
+        <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => void copy()}>
               {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
               Скопіювати
