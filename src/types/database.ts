@@ -321,6 +321,11 @@ export interface Database {
       }
     }
     Functions: {
+      /** Чи ще приймаються замовлення на дату. Джерело істини для дедлайну. */
+      is_before_cutoff: {
+        Args: { p_date: string }
+        Returns: boolean
+      }
       place_order: {
         Args: { p_student_id: string; p_menu_date: string; p_menu_item_ids?: string[] }
         Returns: string

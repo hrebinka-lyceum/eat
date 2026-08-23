@@ -210,3 +210,19 @@ export async function listMenuDaysWithCounts(
 
   return rows.map(({ menu_items, ...day }) => ({ ...day, items_count: menu_items.length }))
 }
+
+/**
+ * Чи приймаються ще замовлення на цю дату — питаємо сервер.
+ *
+ * Це та сама функція, на яку спирається place_order, тож розійтися з нею
+ * відповідь не може. Годинник браузера в рішенні не бере участі взагалі:
+ * він може відставати, поспішати або бути в іншому поясі.
+ *
+ * null означає «не вдалося дізнатися» — тоді нічого не блокуємо і лишаємо
+ * рішення за сервером на момент самого замовлення.
+ */
+export async function areOrdersOpen(menuDate: string): Promise<boolean | null> {
+  const { data, error } = await supabase.rpc('is_before_cutoff', { p_date: menuDate })
+  if (error) return null
+  return data === true
+}

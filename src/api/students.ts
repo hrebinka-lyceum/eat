@@ -92,19 +92,26 @@ export async function setPrivilege(
 }
 
 /** Хто і коли востаннє змінював пільговий статус. */
-export async function getPrivilegeLog(
-  studentId: string,
-  limit = 5,
-): Promise<PrivilegeLogEntry[]> {
+export interface PrivilegeLogRow extends PrivilegeLogEntry {
+  /**
+   * Ім'я того, хто змінив статус. null, якщо це зробив користувач, чий
+   * профіль поточній ролі не видно — наприклад, адміністратор для
+   * класного керівника. Це нормально: політика profiles показує керівнику
+   * лише його самого та учнів його класу.
+   */
+  profiles: { id: string; full_name: string } | null
+}
+
+export async function getPrivilegeLog(studentId: string, limit = 5): Promise<PrivilegeLogRow[]> {
   return unwrap(
     await supabase
       .from('privilege_log')
-      .select('*')
+      .select('*, profiles(id, full_name)')
       .eq('student_id', studentId)
       .order('changed_at', { ascending: false })
       .limit(limit),
     'Не вдалося прочитати журнал пільг.',
-  )
+  ) as unknown as PrivilegeLogRow[]
 }
 
 export async function getEnrollments(studentId: string): Promise<ClassEnrollment[]> {
@@ -130,4 +137,18 @@ export async function transferStudent(
     ...(fromDate ? { p_from_date: fromDate } : {}),
   })
   if (error) throw new Error(humanError(error, 'Не вдалося перевести учня.'))
+}
+
+/**
+ * Учень більше не харчується. Рядок і вся історія лишаються: is_active
+ * знімає його з реєстру, left_at каже, з якого дня його не рахувати
+ * в охопленні.
+ */
+export async function retireStudent(studentId: string, leftAt: string): Promise<Student> {
+  return updateStudent(studentId, { is_active: false, left_at: leftAt })
+}
+
+/** Повернути учня в реєстр. */
+export async function restoreStudent(studentId: string): Promise<Student> {
+  return updateStudent(studentId, { is_active: true, left_at: null })
 }

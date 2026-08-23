@@ -10,6 +10,14 @@ export const qk = {
   nextEmptyDay: () => ['menu-next-empty'] as const,
   nextPublishedDay: () => ['menu-next-published'] as const,
   settings: () => ['settings'] as const,
-  students: (classId: string) => ['students', classId] as const,
+  myClass: (teacherId: string) => ['my-class', teacherId] as const,
+  myStudent: (profileId: string) => ['my-student', profileId] as const,
+  ordersOpen: (date: string) => ['orders-open', date] as const,
+  orderOfStudent: (studentId: string, date: string) => ['order', studentId, date] as const,
+  ordersOfStudent: (studentId: string) => ['orders-of-student', studentId] as const,
+  ordersOfClass: (classId: string, date: string) => ['orders-of-class', classId, date] as const,
+  privilegeLog: (studentId: string) => ['privilege-log', studentId] as const,
+  students: (classId: string, includeInactive = false) =>
+    ['students', classId, { includeInactive }] as const,
   classes: (year?: string) => ['classes', year ?? 'all'] as const,
 }

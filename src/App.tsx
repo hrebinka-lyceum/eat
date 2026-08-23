@@ -11,6 +11,7 @@ import ChangePasswordPage from '@/pages/ChangePasswordPage'
 import NotFoundPage from '@/pages/NotFoundPage'
 
 import StudentMenuPage from '@/pages/student/StudentMenuPage'
+import StudentConfirmPage from '@/pages/student/StudentConfirmPage'
 import StudentHistoryPage from '@/pages/student/StudentHistoryPage'
 
 import ClassRosterPage from '@/pages/teacher/ClassRosterPage'
@@ -66,6 +67,7 @@ export default function App() {
               <Route element={<RequireRole roles={['student']} />}>
                 <Route element={<StudentLayout />}>
                   <Route path="/me" element={<StudentMenuPage />} />
+                  <Route path="/me/confirm" element={<StudentConfirmPage />} />
                   <Route path="/me/history" element={<StudentHistoryPage />} />
                 </Route>
               </Route>
