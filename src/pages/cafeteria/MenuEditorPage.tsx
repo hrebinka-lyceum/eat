@@ -318,39 +318,47 @@ export default function MenuEditorPage() {
         targetHasItems={items.length > 0}
       />
 
-      <ConfirmDialog
-        open={publishOpen}
-        onOpenChange={setPublishOpen}
-        title={`Опублікувати меню на ${formatDateWithWeekday(activeDate)}?`}
-        description={
-          shortNotice ? (
-            <>
-              {hoursLeft !== null && hoursLeft <= 0
-                ? `Час прийому замовлень на цей день уже минув (${formatCutoff(day?.cutoff_at ?? '')}). Учні не зможуть нічого замовити — замовлення за них зможе зробити лише адміністратор.`
-                : `Замовлення приймаються лише до ${formatCutoff(day?.cutoff_at ?? '')} — це менше ніж за ${SHORT_NOTICE_HOURS} години. Учні матимуть дуже мало часу.`}
-            </>
-          ) : (
-            <>
-              Учні побачать меню й зможуть замовляти до {formatCutoff(day?.cutoff_at ?? '')}.
-              Позицій у меню: {items.length}.
-            </>
-          )
-        }
-        confirmLabel="Опублікувати"
-        busy={changeStatus.isPending}
-        onConfirm={() => changeStatus.mutate('published')}
-      />
+      {/* Діалоги публікації існують лише разом із днем: їхні тексти
+          посилаються на cutoff_at, а пропси обчислюються навіть коли
+          діалог закритий. */}
+      {day ? (
+        <>
+          <ConfirmDialog
+            open={publishOpen}
+            onOpenChange={setPublishOpen}
+            title={`Опублікувати меню на ${formatDateWithWeekday(activeDate)}?`}
+            description={
+              shortNotice ? (
+                <>
+                  {hoursLeft !== null && hoursLeft <= 0
+                    ? `Час прийому замовлень на цей день уже минув (${formatCutoff(day.cutoff_at)}). Учні не зможуть нічого замовити — замовлення за них зможе зробити лише адміністратор.`
+                    : `Замовлення приймаються лише до ${formatCutoff(day.cutoff_at)} — це менше ніж за ${SHORT_NOTICE_HOURS} години. Учні матимуть дуже мало часу.`}
+                </>
+              ) : (
+                <>
+                  Учні побачать меню й зможуть замовляти до {formatCutoff(day.cutoff_at)}.
+                  Позицій у меню: {items.length}.
+                </>
+              )
+            }
+            confirmLabel="Опублікувати"
+            busy={changeStatus.isPending}
+            onConfirm={() => changeStatus.mutate('published')}
+          />
 
-      <ConfirmDialog
-        open={unpublishOpen}
-        onOpenChange={setUnpublishOpen}
-        title="Повернути меню в чернетку?"
-        description="Учні перестануть бачити цей день і не зможуть замовляти. Уже зроблені замовлення залишаться."
-        confirmLabel="У чернетку"
-        destructive
-        busy={changeStatus.isPending}
-        onConfirm={() => changeStatus.mutate('draft')}
-      />
+          <ConfirmDialog
+            open={unpublishOpen}
+            onOpenChange={setUnpublishOpen}
+            title="Повернути меню в чернетку?"
+            description="Учні перестануть бачити цей день і не зможуть замовляти. Уже зроблені замовлення залишаться."
+            confirmLabel="У чернетку"
+            destructive
+            busy={changeStatus.isPending}
+            onConfirm={() => changeStatus.mutate('draft')}
+          />
+        </>
+      ) : null}
+
     </div>
   )
 }

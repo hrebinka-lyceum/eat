@@ -29,34 +29,55 @@ export const MENU_STATUS_LABELS: Record<MenuStatus, string> = {
   closed: 'Закрито',
 }
 
+/**
+ * Розбір дати з бази. Повертає null для порожнього чи зіпсованого значення,
+ * щоб форматування ніколи не кидало RangeError: дата, якої ще немає —
+ * звичайний стан (день меню не створено, дедлайн не проставлено), і білого
+ * екрана він коштувати не повинен.
+ */
+function parseDate(value: string | null | undefined): Date | null {
+  if (!value) return null
+  const parsed = parseISO(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+/** Позначка відсутнього значення в інтерфейсі. */
+const DASH = '—'
+
 /** '2026-09-01' -> '1 вересня 2026' */
-export function formatDate(isoDate: string): string {
-  return format(parseISO(isoDate), 'd MMMM yyyy', { locale: uk })
+export function formatDate(isoDate: string | null | undefined): string {
+  const date = parseDate(isoDate)
+  return date ? format(date, 'd MMMM yyyy', { locale: uk }) : DASH
 }
 
 /** '2026-09-01' -> 'пн, 1 вересня' */
-export function formatDateWithWeekday(isoDate: string): string {
-  return format(parseISO(isoDate), 'EEEEEE, d MMMM', { locale: uk })
+export function formatDateWithWeekday(isoDate: string | null | undefined): string {
+  const date = parseDate(isoDate)
+  return date ? format(date, 'EEEEEE, d MMMM', { locale: uk }) : DASH
 }
 
 /** Час дедлайну з timestamptz: '2026-09-01T05:00:00Z' -> '08:00' у Києві */
-export function formatCutoffTime(cutoffAt: string): string {
+export function formatCutoffTime(cutoffAt: string | null | undefined): string {
+  const date = parseDate(cutoffAt)
+  if (!date) return DASH
   return new Intl.DateTimeFormat('uk-UA', {
     timeZone: TIMEZONE,
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(cutoffAt))
+  }).format(date)
 }
 
-/** Дедлайн повністю: '1 вересня, 08:00' */
-export function formatCutoff(cutoffAt: string): string {
+/** Дедлайн повністю: '1 вересня о 08:00' */
+export function formatCutoff(cutoffAt: string | null | undefined): string {
+  const date = parseDate(cutoffAt)
+  if (!date) return DASH
   return new Intl.DateTimeFormat('uk-UA', {
     timeZone: TIMEZONE,
     day: 'numeric',
     month: 'long',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(new Date(cutoffAt))
+  }).format(date)
 }
 
 /** Дата у форматі бази: 'YYYY-MM-DD' за київським часом. */
