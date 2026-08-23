@@ -67,3 +67,27 @@ export function humanError(error: unknown, fallback = 'Не вдалося ви�
 
   return fallback
 }
+
+/** Порушення зовнішнього ключа: на запис хтось посилається. */
+export function isForeignKeyViolation(error: unknown): boolean {
+  return (error as MaybeSupabaseError)?.code === '23503'
+}
+
+/** Порушення унікальності. */
+export function isUniqueViolation(error: unknown): boolean {
+  return (error as MaybeSupabaseError)?.code === '23505'
+}
+
+/**
+ * Те саме, що humanError, але для випадків, коли конкретний код помилки
+ * значить у цьому місці щось конкретніше за загальний текст.
+ */
+export function humanErrorWith(
+  error: unknown,
+  overrides: Partial<Record<'23503' | '23505' | '42501', string>>,
+  fallback?: string,
+): string {
+  const code = (error as MaybeSupabaseError)?.code
+  if (code && code in overrides) return overrides[code as keyof typeof overrides] as string
+  return humanError(error, fallback)
+}

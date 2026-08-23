@@ -91,3 +91,23 @@ export function formatPercent(value: number | null | undefined): string {
 export function fullName(lastName: string, firstName: string): string {
   return `${lastName} ${firstName}`.trim()
 }
+
+/**
+ * Ціна з поля вводу. Приймає і кому, і крапку; порожнє поле означає
+ * «ціни немає» (null), а не нуль — нуль був би справжньою нульовою вартістю.
+ */
+export function parseMoneyInput(input: string): { value: number | null; error: string | null } {
+  const trimmed = input.trim().replace(',', '.')
+  if (!trimmed) return { value: null, error: null }
+
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed)) return { value: null, error: 'Ціна має бути числом.' }
+  if (parsed < 0) return { value: null, error: 'Ціна не може бути від’ємною.' }
+
+  return { value: Math.round(parsed * 100) / 100, error: null }
+}
+
+/** Значення ціни для поля вводу: null -> порожньо. */
+export function moneyToInput(value: number | null | undefined): string {
+  return value === null || value === undefined ? '' : String(value)
+}

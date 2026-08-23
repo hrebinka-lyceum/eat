@@ -1,11 +1,25 @@
 import { supabase } from '@/lib/supabase'
 import { unwrap, unwrapMaybe } from './helpers'
-import { humanError } from '@/lib/errors'
+import { humanError, humanErrorWith } from '@/lib/errors'
 import { toIsoDate } from '@/lib/format'
 import type { Dish, MenuDay, MenuItem, MenuStatus } from '@/types/database'
 
 export interface MenuItemWithDish extends MenuItem {
   dishes: Pick<Dish, 'id' | 'name' | 'category' | 'is_active'>
+}
+
+/**
+ * Позиція меню без ціни — для екранів класного керівника й учня.
+ *
+ * dishes.price сервер віддає всім (RLS на довіднику страв немає), тож
+ * єдиний надійний спосіб не показати ціну там, де її не має бути, —
+ * не запитувати її взагалі.
+ */
+export interface MenuItemPlain {
+  id: string
+  menu_date: string
+  dish_id: string
+  dishes: Pick<Dish, 'id' | 'name' | 'category'>
 }
 
 export async function listMenuDays(from: string, to: string): Promise<MenuDay[]> {
@@ -79,21 +93,40 @@ export async function addMenuItem(
   dishId: string,
   price?: number | null,
 ): Promise<MenuItem> {
-  return unwrap(
-    await supabase
-      .from('menu_items')
-      .insert({ menu_date: menuDate, dish_id: dishId, ...(price != null ? { price } : {}) })
-      .select('*')
-      .single(),
-    'Не вдалося додати страву до меню.',
-  )
+  const { data, error } = await supabase
+    .from('menu_items')
+    .insert({ menu_date: menuDate, dish_id: dishId, ...(price != null ? { price } : {}) })
+    .select('*')
+    .single()
+
+  if (error) {
+    throw new Error(
+      humanErrorWith(
+        error,
+        {
+          '23505': 'Ця страва вже є в меню на цей день.',
+          '23503': 'Дня меню ще не існує — спершу створіть його.',
+        },
+        'Не вдалося додати страву до меню.',
+      ),
+    )
+  }
+  return data
 }
 
 export async function removeMenuItem(menuItemId: string): Promise<void> {
   const { error } = await supabase.from('menu_items').delete().eq('id', menuItemId)
   if (error) {
     throw new Error(
-      humanError(error, 'Не вдалося прибрати страву — можливо, її вже замовили.'),
+      humanErrorWith(
+        error,
+        {
+          '23503':
+            'Цю страву вже замовили на цей день, тому прибрати її з меню не можна: ' +
+            'замовлення незмінні.',
+        },
+        'Не вдалося прибрати страву з меню.',
+      ),
     )
   }
 }
@@ -132,4 +165,49 @@ export async function copyMenu(source: string, target: string): Promise<number> 
   const { data, error } = await supabase.rpc('copy_menu', { p_source: source, p_target: target })
   if (error) throw new Error(humanError(error, 'Не вдалося скопіювати меню.'))
   return data ?? 0
+}
+
+/** Склад меню без цін — для керівника та учня. */
+export async function listMenuItemsPlain(menuDate: string): Promise<MenuItemPlain[]> {
+  return unwrap(
+    await supabase
+      .from('menu_items')
+      .select('id, menu_date, dish_id, dishes(id, name, category)')
+      .eq('menu_date', menuDate),
+    'Не вдалося отримати меню на день.',
+  ) as unknown as MenuItemPlain[]
+}
+
+/** Те саме за період — щоб не робити запит на кожен день окремо. */
+export async function listMenuItemsPlainRange(
+  from: string,
+  to: string,
+): Promise<MenuItemPlain[]> {
+  return unwrap(
+    await supabase
+      .from('menu_items')
+      .select('id, menu_date, dish_id, dishes(id, name, category)')
+      .gte('menu_date', from)
+      .lte('menu_date', to)
+      .order('menu_date'),
+    'Не вдалося отримати меню.',
+  ) as unknown as MenuItemPlain[]
+}
+
+/** Дні періоду разом з кількістю страв — для перемикача дати в редакторі. */
+export async function listMenuDaysWithCounts(
+  from: string,
+  to: string,
+): Promise<Array<MenuDay & { items_count: number }>> {
+  const rows = unwrap(
+    await supabase
+      .from('menu_days')
+      .select('*, menu_items(id)')
+      .gte('menu_date', from)
+      .lte('menu_date', to)
+      .order('menu_date'),
+    'Не вдалося отримати дні меню.',
+  ) as unknown as Array<MenuDay & { menu_items: { id: string }[] }>
+
+  return rows.map(({ menu_items, ...day }) => ({ ...day, items_count: menu_items.length }))
 }
