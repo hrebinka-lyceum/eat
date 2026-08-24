@@ -349,7 +349,7 @@ export interface Database {
           p_max_grade?: number
           p_start_date?: string
         }
-        Returns: Json
+        Returns: PromoteResult
       }
       purge_preview: {
         Args: { p_from: string; p_to: string }
@@ -362,7 +362,7 @@ export interface Database {
           p_scopes: PurgeScope[]
           p_confirm: string
         }
-        Returns: Json
+        Returns: PurgeResult
       }
     }
     Enums: {
@@ -373,6 +373,29 @@ export interface Database {
     }
     CompositeTypes: Record<never, never>
   }
+}
+
+/** Звіт переведення року. */
+export interface PromoteResult {
+  previous_year: string
+  new_year: string
+  start_date: string
+  /** скільки класів створено всього, разом із новими вхідними */
+  classes_created: number
+  /** скільки з них — нові п'яті, порожні й без керівника */
+  entry_classes: number
+  students_moved: number
+  students_graduated: number
+}
+
+/** Що саме видалено. Ключі присутні лише для обраних категорій. */
+export interface PurgeResult {
+  orders?: number
+  menu_days?: number
+  privilege_log?: number
+  graduated_students?: number
+  /** з'являється, якщо акаунти випущених учнів прибрати не вдалося */
+  auth_users_note?: string
 }
 
 export interface PurgePreview {
