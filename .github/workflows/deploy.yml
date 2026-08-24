@@ -23,10 +23,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          # Та сама версія, на якій ганяються тести локально: збирати з однієї,
+          # а перевіряти на іншій — зайвий шанс на сюрприз під час деплою.
+          node-version: 24
           cache: npm
 
       - run: npm ci
+
+      - name: Tests
+        run: npm test
 
       - name: Build
         # Ключі беруться з секретів репозиторію. У фронтенді живе лише

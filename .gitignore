@@ -1,5 +1,6 @@
 node_modules
 dist
+coverage
 .env
 .env.local
 *.local
@@ -9,3 +10,7 @@ dist
 TZ-frontend.md
 school_meals_schema.sql
 accounts-edge-function.ts
+
+# Локальний контекст для асистента
+.context
+CLAUDE.md

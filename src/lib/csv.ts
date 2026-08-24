@@ -20,17 +20,21 @@ function cell(value: string | number | boolean | null | undefined): string {
 }
 
 /**
- * Формує CSV і віддає його користувачу як файл.
+ * Складає текст CSV. Винесено окремо від завантаження, щоб екранування
+ * можна було перевірити тестом, не імітуючи браузер.
  *
  * Роздільник — крапка з комою: Excel з українською локаллю відкриває такий
  * файл без «майстра імпорту». BOM — щоб кирилиця не перетворилась на кракозябри.
  */
-export function exportToCsv<T>(rows: T[], columns: CsvColumn<T>[], filename: string): void {
+export function buildCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
   const header = columns.map((c) => cell(c.header)).join(';')
   const body = rows.map((row) => columns.map((c) => cell(c.value(row))).join(';'))
-  const csv = '﻿' + [header, ...body].join('\r\n') + '\r\n'
+  return '\ufeff' + [header, ...body].join('\r\n') + '\r\n'
+}
 
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+/** Формує CSV і віддає його користувачу як файл. */
+export function exportToCsv<T>(rows: T[], columns: CsvColumn<T>[], filename: string): void {
+  const blob = new Blob([buildCsv(rows, columns)], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url

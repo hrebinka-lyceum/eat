@@ -2,6 +2,11 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { TriangleAlert } from 'lucide-react'
 import { costRows } from '@/api/stats'
+import {
+  aggregateReimbursement,
+  reimbursementTotals,
+  type ReimbursementRow,
+} from '@/lib/reportMath'
 import { listClasses } from '@/api/classes'
 import { getSettings } from '@/api/settings'
 import { qk } from '@/lib/queryKeys'
@@ -22,15 +27,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-
-interface Row {
-  class_id: string
-  class_name: string
-  privileged_portions: number
-  privileged_cost: number
-  regular_portions: number
-  regular_cost: number
-}
 
 /**
  * Звіт про відшкодування: скільки порцій видано і на яку суму, окремо
@@ -56,47 +52,17 @@ export default function ReimbursementReport() {
     enabled: Boolean(settingsQuery.data),
   })
 
-  const { rows, missingPrices } = useMemo(() => {
-    const map = new Map<string, Row>()
-    let missing = 0
-
-    for (const order of costQuery.data ?? []) {
-      const current = map.get(order.class_id) ?? {
-        class_id: order.class_id,
-        class_name:
-          (classesQuery.data ?? []).find((item) => item.id === order.class_id)?.name ?? '—',
-        privileged_portions: 0,
-        privileged_cost: 0,
-        regular_portions: 0,
-        regular_cost: 0,
-      }
-
-      if (order.privileged) {
-        current.privileged_portions += 1
-        current.privileged_cost += order.cost
-      } else {
-        current.regular_portions += 1
-        current.regular_cost += order.cost
-      }
-      missing += order.missing_prices
-      map.set(order.class_id, current)
-    }
-
-    return {
-      rows: [...map.values()].sort((a, b) => a.class_name.localeCompare(b.class_name, 'uk')),
-      missingPrices: missing,
-    }
-  }, [costQuery.data, classesQuery.data])
-
-  const totals = rows.reduce(
-    (acc, row) => ({
-      privileged_portions: acc.privileged_portions + row.privileged_portions,
-      privileged_cost: acc.privileged_cost + row.privileged_cost,
-      regular_portions: acc.regular_portions + row.regular_portions,
-      regular_cost: acc.regular_cost + row.regular_cost,
-    }),
-    { privileged_portions: 0, privileged_cost: 0, regular_portions: 0, regular_cost: 0 },
+  const { rows, missingPrices } = useMemo(
+    () =>
+      aggregateReimbursement(
+        costQuery.data ?? [],
+        (classId) =>
+          (classesQuery.data ?? []).find((item) => item.id === classId)?.name ?? '—',
+      ),
+    [costQuery.data, classesQuery.data],
   )
+
+  const totals = reimbursementTotals(rows)
 
   return (
     <ReportFrame
@@ -120,14 +86,14 @@ export default function ReimbursementReport() {
           rows={rows}
           filename={`відшкодування-${month}.csv`}
           columns={[
-            { header: 'Клас', value: (r) => r.class_name },
-            { header: 'Порцій пільгових', value: (r) => r.privileged_portions },
-            { header: 'Сума пільгових, ₴', value: (r) => r.privileged_cost.toFixed(2) },
-            { header: 'Порцій звичайних', value: (r) => r.regular_portions },
-            { header: 'Сума звичайних, ₴', value: (r) => r.regular_cost.toFixed(2) },
+            { header: 'Клас', value: (r: ReimbursementRow) => r.class_name },
+            { header: 'Порцій пільгових', value: (r: ReimbursementRow) => r.privileged_portions },
+            { header: 'Сума пільгових, ₴', value: (r: ReimbursementRow) => r.privileged_cost.toFixed(2) },
+            { header: 'Порцій звичайних', value: (r: ReimbursementRow) => r.regular_portions },
+            { header: 'Сума звичайних, ₴', value: (r: ReimbursementRow) => r.regular_cost.toFixed(2) },
             {
               header: 'Разом, ₴',
-              value: (r) => (r.privileged_cost + r.regular_cost).toFixed(2),
+              value: (r: ReimbursementRow) => (r.privileged_cost + r.regular_cost).toFixed(2),
             },
           ]}
         />

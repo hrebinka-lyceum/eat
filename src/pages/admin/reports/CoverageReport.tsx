@@ -1,6 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { classCoverage } from '@/api/stats'
+import {
+  aggregateCoverage,
+  coverageAveragePerDay,
+  coverageClassPct,
+  coverageRegisteredPct,
+  coverageTotalClassPct,
+  coverageTotalRegisteredPct,
+  coverageTotals,
+  type CoverageClass,
+} from '@/lib/reportMath'
 import { qk } from '@/lib/queryKeys'
 import { formatMonthValue, monthValueBounds, toMonthValue } from '@/lib/dates'
 import { formatPercent } from '@/lib/format'
@@ -19,16 +29,6 @@ import {
   TableRow,
 } from '@/components/ui/table'
 
-interface Row {
-  class_id: string
-  class_name: string
-  total_students: number | null
-  registered: number
-  ordered_sum: number
-  registered_sum: number
-  days: number
-}
-
 /**
  * Охоплення за місяць. Два відсотки рахуються по-різному й навмисно:
  * перший — частка тих, хто справді замовляв, від тих, хто харчується;
@@ -44,66 +44,11 @@ export default function CoverageReport() {
     placeholderData: (previous) => previous,
   })
 
-  const rows = useMemo(() => {
-    const map = new Map<string, Row>()
+  const rows = useMemo(() => aggregateCoverage(coverageQuery.data ?? []), [coverageQuery.data])
 
-    for (const day of coverageQuery.data ?? []) {
-      const current = map.get(day.class_id) ?? {
-        class_id: day.class_id,
-        class_name: day.class_name,
-        total_students: day.total_students,
-        registered: day.students_registered,
-        ordered_sum: 0,
-        registered_sum: 0,
-        days: 0,
-      }
-      current.ordered_sum += day.students_ordered
-      current.registered_sum += day.students_registered
-      current.days += 1
-      // Скільки в реєстрі — беремо за останній день періоду: це найсвіжіше
-      // число, а не середнє по місяцю.
-      current.registered = day.students_registered
-      current.total_students = day.total_students
-      map.set(day.class_id, current)
-    }
 
-    return [...map.values()].sort((a, b) => a.class_name.localeCompare(b.class_name, 'uk'))
-  }, [coverageQuery.data])
-
-  // Відсоток рахується від сум, а не як середнє з денних відсотків: інакше
-  // день, коли в класі був один учень, важив би стільки ж, скільки повний.
-  const registeredPct = (row: Row) =>
-    row.registered_sum === 0 ? null : (row.ordered_sum / row.registered_sum) * 100
-
-  const classPct = (row: Row) =>
-    row.total_students ? (row.registered / row.total_students) * 100 : null
-
-  const averagePerDay = (row: Row) => (row.days === 0 ? 0 : row.ordered_sum / row.days)
-
-  const totals = rows.reduce(
-    (acc, row) => ({
-      total_students: acc.total_students + (row.total_students ?? 0),
-      registered: acc.registered + row.registered,
-      ordered_sum: acc.ordered_sum + row.ordered_sum,
-      registered_sum: acc.registered_sum + row.registered_sum,
-      days: Math.max(acc.days, row.days),
-      // Клас без указаного розміру не можна брати лише в чисельник:
-      // тоді школа «харчується» на 118%. Рахуємо його з обох боків або ніяк.
-      sized_total: acc.sized_total + (row.total_students ?? 0),
-      sized_registered: acc.sized_registered + (row.total_students ? row.registered : 0),
-    }),
-    {
-      total_students: 0,
-      registered: 0,
-      ordered_sum: 0,
-      registered_sum: 0,
-      days: 0,
-      sized_total: 0,
-      sized_registered: 0,
-    },
-  )
-
-  const unsized = rows.filter((row) => row.total_students === null)
+  const totals = coverageTotals(rows)
+  const unsized = totals.unsized
 
   return (
     <ReportFrame
@@ -127,17 +72,17 @@ export default function CoverageReport() {
           rows={rows}
           filename={`охоплення-${month}.csv`}
           columns={[
-            { header: 'Клас', value: (r) => r.class_name },
+            { header: 'Клас', value: (r: CoverageClass) => r.class_name },
             { header: 'Усього учнів у класі', value: (r) => r.total_students ?? '' },
             { header: 'У реєстрі харчування', value: (r) => r.registered },
-            { header: 'У середньому замовляли на день', value: (r) => averagePerDay(r).toFixed(1) },
+            { header: 'У середньому замовляли на день', value: (r) => coverageAveragePerDay(r).toFixed(1) },
             {
               header: 'Замовили, % від тих, хто харчується',
-              value: (r) => registeredPct(r)?.toFixed(1) ?? '',
+              value: (r) => coverageRegisteredPct(r)?.toFixed(1) ?? '',
             },
             {
               header: 'У реєстрі, % від усього класу',
-              value: (r) => classPct(r)?.toFixed(1) ?? '',
+              value: (r) => coverageClassPct(r)?.toFixed(1) ?? '',
             },
           ]}
         />
@@ -175,13 +120,13 @@ export default function CoverageReport() {
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{row.registered}</TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {averagePerDay(row).toFixed(1)}
+                      {coverageAveragePerDay(row).toFixed(1)}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatPercent(registeredPct(row))}
+                      {formatPercent(coverageRegisteredPct(row))}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatPercent(classPct(row))}
+                      {formatPercent(coverageClassPct(row))}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -197,18 +142,10 @@ export default function CoverageReport() {
                     {(totals.days === 0 ? 0 : totals.ordered_sum / totals.days).toFixed(1)}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatPercent(
-                      totals.registered_sum === 0
-                        ? null
-                        : (totals.ordered_sum / totals.registered_sum) * 100,
-                    )}
+                    {formatPercent(coverageTotalRegisteredPct(totals))}
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
-                    {formatPercent(
-                      totals.sized_total === 0
-                        ? null
-                        : (totals.sized_registered / totals.sized_total) * 100,
-                    )}
+                    {formatPercent(coverageTotalClassPct(rows))}
                   </TableCell>
                 </TableRow>
               </TableFooter>
