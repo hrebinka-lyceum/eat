@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { History, LogOut, UtensilsCrossed } from 'lucide-react'
 import { useAuth } from '@/auth/AuthContext'
 import { Button } from '@/components/ui/button'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { cn } from '@/lib/utils'
 
 const TABS = [
@@ -26,9 +27,12 @@ export function StudentLayout() {
     <div className="flex min-h-svh flex-col bg-background">
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur">
         <span className="truncate font-medium">{profile?.full_name || 'Учень'}</span>
-        <Button variant="ghost" size="icon" aria-label="Вийти" onClick={() => void handleSignOut()}>
-          <LogOut className="size-5" aria-hidden />
-        </Button>
+        <div className="flex items-center gap-1">
+          <ThemeToggle />
+          <Button variant="ghost" size="icon" aria-label="Вийти" onClick={() => void handleSignOut()}>
+            <LogOut className="size-5" aria-hidden />
+          </Button>
+        </div>
       </header>
 
       <main className="flex-1 px-4 pb-24 pt-4">

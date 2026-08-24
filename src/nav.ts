@@ -1,4 +1,5 @@
 import {
+  CalendarCheck,
   CalendarDays,
   ChartColumn,
   ClipboardList,
@@ -43,6 +44,13 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/class/dashboard',
     label: 'Дашборд класу',
     icon: ChartColumn,
+    roles: ['teacher'],
+    group: 'work',
+  },
+  {
+    to: '/class/timesheet',
+    label: 'Табель',
+    icon: CalendarCheck,
     roles: ['teacher'],
     group: 'work',
   },

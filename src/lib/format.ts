@@ -145,3 +145,16 @@ export function parseMoneyInput(input: string): { value: number | null; error: s
 export function moneyToInput(value: number | null | undefined): string {
   return value === null || value === undefined ? '' : String(value)
 }
+
+/**
+ * Українська множина: 1 позиція, 2 позиції, 5 позицій.
+ * Потрібна там, де число підставляється в текст звіту.
+ */
+export function plural(count: number, one: string, few: string, many: string): string {
+  const mod100 = Math.abs(count) % 100
+  const mod10 = mod100 % 10
+  if (mod100 >= 11 && mod100 <= 14) return many
+  if (mod10 === 1) return one
+  if (mod10 >= 2 && mod10 <= 4) return few
+  return many
+}

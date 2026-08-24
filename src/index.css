@@ -151,8 +151,15 @@
     padding: 0 !important;
   }
 
+  html,
   body {
-    background: #fff;
+    /* Полотно аркуша теж має бути білим: у темній темі поля друкувалися
+       чорною рамкою навколо світлої таблиці. */
+    background: #fff !important;
+    /* next-themes ставить color-scheme інлайном на <html>; перебити його
+       зі стилю можна лише через !important, інакше браузер малює темне
+       полотно навколо світлої таблиці. */
+    color-scheme: light !important;
   }
 
   /* Таблиця на папері не прокручується — вона має вміститися повністю,
@@ -163,5 +170,30 @@
 
   [data-slot="table"] {
     font-size: 0.8rem;
+  }
+
+  /* Друк завжди світлий. Браузер типово не друкує тла, тож у темній темі
+     на папір пішов би білий текст по білому — тобто порожній аркуш. */
+  .dark {
+    --background: oklch(1 0 0);
+    --foreground: oklch(0.145 0 0);
+    --card: oklch(1 0 0);
+    --card-foreground: oklch(0.145 0 0);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.145 0 0);
+    --primary: oklch(0.205 0 0);
+    --primary-foreground: oklch(0.985 0 0);
+    --secondary: oklch(0.97 0 0);
+    --secondary-foreground: oklch(0.205 0 0);
+    --muted: oklch(0.97 0 0);
+    --muted-foreground: oklch(0.556 0 0);
+    --accent: oklch(0.97 0 0);
+    --accent-foreground: oklch(0.205 0 0);
+    --border: oklch(0.922 0 0);
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-grid: #e1e0d9;
+    --series-axis: #c3c2b7;
+    --series-surface: #ffffff;
   }
 }

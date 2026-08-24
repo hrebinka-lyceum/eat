@@ -4,8 +4,19 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light" />
+    <meta name="color-scheme" content="light dark" />
     <title>Шкільне харчування</title>
+    <script>
+      // Тему застосовуємо до першого малювання, інакше той, хто обрав
+      // темну, побачить білий спалах на кожному відкритті.
+      try {
+        if (localStorage.getItem('eat.theme') === 'dark') {
+          document.documentElement.classList.add('dark')
+        }
+      } catch (e) {
+        /* приватний режим — лишаємось на світлій */
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

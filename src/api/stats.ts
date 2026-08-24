@@ -69,6 +69,12 @@ export interface OrderCostRow {
   class_id: string
   privileged: boolean
   cost: number
+  /**
+   * Скільки позицій замовлення прийшло без ціни. Такі страви додають до
+   * суми нуль — і якщо про це не сказати, звіт про відшкодування тихо
+   * занизить цифру.
+   */
+  missing_prices: number
 }
 
 /**
@@ -105,5 +111,6 @@ export async function costRows(from: string, to: string): Promise<OrderCostRow[]
     // null у ціні — страва без ціни в довіднику, а не нуль-вартість.
     // Для суми вона просто нічого не додає.
     cost: row.order_items.reduce((sum, item) => sum + (item.price_at_order ?? 0), 0),
+    missing_prices: row.order_items.filter((item) => item.price_at_order === null).length,
   }))
 }

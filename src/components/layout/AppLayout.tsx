@@ -12,6 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { ThemeToggle } from '@/components/common/ThemeToggle'
 import { cn } from '@/lib/utils'
 
 function groupItems(items: NavItem[]) {
@@ -52,7 +53,9 @@ export function AppLayout() {
             <UtensilsCrossed className="size-5" aria-hidden />
             <span>Шкільне харчування</span>
           </div>
-          <DropdownMenu>
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" className="max-w-[60vw] truncate">
                 {profile?.full_name || 'Користувач'}
@@ -68,7 +71,8 @@ export function AppLayout() {
                 Вийти
               </DropdownMenuItem>
             </DropdownMenuContent>
-          </DropdownMenu>
+            </DropdownMenu>
+          </div>
         </div>
 
         {/* Навігація на вузькому екрані */}

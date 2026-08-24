@@ -1,4 +1,5 @@
 import { Suspense, lazy } from 'react'
+import { ThemeProvider } from 'next-themes'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from '@/auth/AuthProvider'
@@ -26,6 +27,12 @@ import MenuEditorPage from '@/pages/cafeteria/MenuEditorPage'
 import StudentSearchPage from '@/pages/admin/StudentSearchPage'
 import ClassesPage from '@/pages/admin/ClassesPage'
 import ReportsPage from '@/pages/admin/ReportsPage'
+
+import ReimbursementReport from '@/pages/admin/reports/ReimbursementReport'
+import TimesheetReport from '@/pages/admin/reports/TimesheetReport'
+import CoverageReport from '@/pages/admin/reports/CoverageReport'
+import PrivilegedReport from '@/pages/admin/reports/PrivilegedReport'
+import LateOrdersReport from '@/pages/admin/reports/LateOrdersReport'
 
 import UsersPage from '@/pages/superadmin/UsersPage'
 import SettingsPage from '@/pages/superadmin/SettingsPage'
@@ -60,7 +67,16 @@ const STAFF_AND_TEACHER = ['teacher', 'cafeteria', 'admin', 'superadmin'] as con
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
+      {/* Тема зберігається в браузері під тим самим ключем, що читає
+          скрипт в index.html, — щоб темна не блимала білим при старті. */}
+      <ThemeProvider
+        attribute="class"
+        defaultTheme="light"
+        enableSystem={false}
+        storageKey="eat.theme"
+        disableTransitionOnChange
+      >
+        <AuthProvider>
         <BrowserRouter basename={BASENAME}>
           <Suspense fallback={<LoadingState />}>
             <Routes>
@@ -87,6 +103,9 @@ export default function App() {
                       <Route path="/class/orders" element={<ClassOrdersPage />} />
                       <Route path="/class/menu" element={<TeacherMenuPage />} />
                       <Route path="/class/dashboard" element={<ClassDashboardPage />} />
+                      {/* Табель свого класу — керівник заповнює його щомісяця
+                          вручну, тож нехай бере готовий. Сум там немає. */}
+                      <Route path="/class/timesheet" element={<TimesheetReport />} />
                     </Route>
 
                     <Route element={<RequireRole roles={['cafeteria', 'admin', 'superadmin']} />}>
@@ -100,6 +119,11 @@ export default function App() {
                       <Route path="/search" element={<StudentSearchPage />} />
                       <Route path="/classes" element={<ClassesPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
+                      <Route path="/reports/reimbursement" element={<ReimbursementReport />} />
+                      <Route path="/reports/timesheet" element={<TimesheetReport />} />
+                      <Route path="/reports/coverage" element={<CoverageReport />} />
+                      <Route path="/reports/privileged" element={<PrivilegedReport />} />
+                      <Route path="/reports/late" element={<LateOrdersReport />} />
                     </Route>
 
                     <Route element={<RequireRole roles={['superadmin']} />}>
@@ -118,7 +142,8 @@ export default function App() {
           </Suspense>
           <Toaster position="top-center" />
         </BrowserRouter>
-      </AuthProvider>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   )
 }
