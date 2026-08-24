@@ -43,7 +43,10 @@ export function AppLayout() {
 
   return (
     <div className="min-h-svh bg-background">
-      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
+      <header
+        data-print="hide"
+        className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur"
+      >
         <div className="flex h-14 items-center justify-between gap-3 px-4">
           <div className="flex items-center gap-2 font-semibold">
             <UtensilsCrossed className="size-5" aria-hidden />
@@ -80,7 +83,7 @@ export function AppLayout() {
       </header>
 
       <div className="flex">
-        <aside className="hidden w-64 shrink-0 border-r p-3 lg:block">
+        <aside data-print="hide" className="hidden w-64 shrink-0 border-r p-3 lg:block">
           <nav className="sticky top-20 space-y-4">
             {groupItems(items).map(([group, groupNav]) => (
               <div key={group}>

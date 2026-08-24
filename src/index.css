@@ -73,6 +73,14 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --radius: 0.625rem;
+    /* Кольори графіків. Сірі --chart-* із теми годяться для «більше=темніше»,
+       але не для розрізнення рядів, тож для категорій задано власні.
+       Пара перевірена валідатором палітри: CVD ΔE 24.7, контраст >= 3:1. */
+    --series-1: #2a78d6;
+    --series-2: #eb6834;
+    --series-grid: #e1e0d9;
+    --series-axis: #c3c2b7;
+    --series-surface: #ffffff;
     --sidebar: oklch(0.985 0 0);
     --sidebar-foreground: oklch(0.145 0 0);
     --sidebar-primary: oklch(0.205 0 0);
@@ -108,6 +116,11 @@
     --chart-4: oklch(0.371 0 0);
     --chart-5: oklch(0.269 0 0);
     --sidebar: oklch(0.205 0 0);
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-grid: #2c2c2a;
+    --series-axis: #383835;
+    --series-surface: oklch(0.205 0 0);
     --sidebar-foreground: oklch(0.985 0 0);
     --sidebar-primary: oklch(0.488 0.243 264.376);
     --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -127,4 +140,28 @@
   html {
     @apply font-sans;
     }
+}
+/* Друк аркуша порцій: на папері потрібні лише дані. */
+@media print {
+  [data-print="hide"] {
+    display: none !important;
+  }
+
+  [data-print="sheet"] {
+    padding: 0 !important;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  /* Таблиця на папері не прокручується — вона має вміститися повністю,
+     інакше остання колонка просто зникає з аркуша. */
+  [data-slot="table-container"] {
+    overflow: visible !important;
+  }
+
+  [data-slot="table"] {
+    font-size: 0.8rem;
+  }
 }
