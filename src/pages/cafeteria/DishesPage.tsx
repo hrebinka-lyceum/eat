@@ -4,7 +4,12 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { deleteDish, listDishes, setDishActive } from '@/api/dishes'
 import { qk } from '@/lib/queryKeys'
-import { CATEGORY_LABELS, CATEGORY_ORDER, formatMoney } from '@/lib/format'
+import {
+  CATEGORY_LABELS,
+  CATEGORY_ORDER,
+  SELECTABLE_CATEGORIES,
+  formatMoney,
+} from '@/lib/format'
 import { humanError } from '@/lib/errors'
 import { csvFilename } from '@/lib/csv'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -79,6 +84,14 @@ export default function DishesPage() {
     },
   })
 
+  // У фільтрі — перша й друга страва плюс ті категорії, що реально є в
+  // даних: страви минулих років нікуди не поділися, і знайти їх треба.
+  const filterCategories = useMemo(() => {
+    const present = new Set<DishCategory>(SELECTABLE_CATEGORIES)
+    for (const dish of dishesQuery.data ?? []) present.add(dish.category)
+    return CATEGORY_ORDER.filter((item) => present.has(item))
+  }, [dishesQuery.data])
+
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
     return (dishesQuery.data ?? []).filter((dish) => {
@@ -149,7 +162,7 @@ export default function DishesPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Усі категорії</SelectItem>
-              {CATEGORY_ORDER.map((item) => (
+              {filterCategories.map((item) => (
                 <SelectItem key={item} value={item}>
                   {CATEGORY_LABELS[item]}
                 </SelectItem>

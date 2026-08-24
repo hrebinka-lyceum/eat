@@ -3,7 +3,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { createDish, updateDish } from '@/api/dishes'
 import { humanError } from '@/lib/errors'
-import { CATEGORY_LABELS, CATEGORY_ORDER, moneyToInput, parseMoneyInput } from '@/lib/format'
+import {
+  CATEGORY_LABELS,
+  SELECTABLE_CATEGORIES,
+  moneyToInput,
+  parseMoneyInput,
+} from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -121,7 +126,7 @@ export function DishDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CATEGORY_ORDER.map((item) => (
+                  {SELECTABLE_CATEGORIES.map((item) => (
                     <SelectItem key={item} value={item}>
                       {CATEGORY_LABELS[item]}
                     </SelectItem>
@@ -129,6 +134,11 @@ export function DishDialog({
                 </SelectContent>
               </Select>
             </div>
+
+            <p className="text-xs text-muted-foreground">
+              Гарнір, напій і випічка окремо не заводяться — вони йдуть у комплекті
+              з другою стравою.
+            </p>
 
             <div className="space-y-2">
               <Label htmlFor="dish-price">Ціна, ₴</Label>

@@ -20,8 +20,21 @@ export const CATEGORY_LABELS: Record<DishCategory, string> = {
   bakery: 'Випічка',
 }
 
-/** Порядок категорій у меню — від першої страви до випічки. */
+/**
+ * Порядок категорій для показу. Тут навмисно лишаються всі п'ять: гарнір,
+ * напій і випічку більше не заводять, але страви минулих років з такими
+ * категоріями є в базі, і в меню чи звіті вони мають малюватися, а не
+ * тихо зникати.
+ */
 export const CATEGORY_ORDER: DishCategory[] = ['first', 'second', 'side', 'drink', 'bakery']
+
+/**
+ * Категорії, які можна обрати для нової страви.
+ *
+ * Гарнір, напій і випічка йдуть у комплекті з другою стравою, тож окремими
+ * позиціями меню вони більше не є.
+ */
+export const SELECTABLE_CATEGORIES: DishCategory[] = ['first', 'second']
 
 export const MENU_STATUS_LABELS: Record<MenuStatus, string> = {
   draft: 'Чернетка',

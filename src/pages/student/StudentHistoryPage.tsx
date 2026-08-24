@@ -51,7 +51,7 @@ export default function StudentHistoryPage() {
           <div key={order.id} className="rounded-xl border p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="font-medium">{formatDateWithWeekday(order.menu_date)}</p>
-              {order.privileged_at_order ? <Badge variant="secondary">Комплекс</Badge> : null}
+              {order.privileged_at_order ? <Badge variant="secondary">Пільгове</Badge> : null}
             </div>
             <ul className="mt-2 space-y-0.5 text-sm text-muted-foreground">
               {dishes.map((dish) => (

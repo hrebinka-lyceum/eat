@@ -321,6 +321,15 @@ export interface Database {
       }
     }
     Functions: {
+      /**
+       * Пошта за логіном. Потрібна на екрані входу: Supabase автентифікує
+       * за email, а логін — це те, що людина пам'ятає. Доступна анонімно,
+       * бо викликається до входу.
+       */
+      email_for_login: {
+        Args: { p_login: string }
+        Returns: string | null
+      }
       /** Чи ще приймаються замовлення на дату. Джерело істини для дедлайну. */
       is_before_cutoff: {
         Args: { p_date: string }

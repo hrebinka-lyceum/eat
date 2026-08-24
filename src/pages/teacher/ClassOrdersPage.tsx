@@ -131,21 +131,11 @@ export default function ClassOrdersPage() {
     })
   }
 
-  const togglePrivileged = (student: Student, include: boolean) => {
-    setSelection((current) => {
-      const next = { ...current }
-      if (include) next[student.id] = []
-      else delete next[student.id]
-      return next
-    })
-  }
-
-  /** Відмітити страву всім, хто ще не замовив. Пільгових це не стосується. */
+  /** Відмітити страву всім, хто ще не замовив. */
   const assignToAll = (item: MenuItemPlain) => {
     setSelection((current) => {
       const next = { ...current }
       for (const student of pending) {
-        if (student.is_privileged) continue
         const currentIds = next[student.id] ?? []
         if (currentIds.includes(item.id)) continue
         if (SINGLE_CHOICE.includes(item.dishes.category)) {
@@ -340,34 +330,8 @@ export default function ClassOrdersPage() {
                       <TableCell colSpan={items.length}>
                         <span className="inline-flex items-center gap-1.5 text-sm">
                           <CircleCheck className="size-4 text-primary" aria-hidden />
-                          Замовлено: {ordered.join(', ') || 'комплекс'}
+                          Замовлено: {ordered.join(', ') || 'склад невідомий'}
                         </span>
-                      </TableCell>
-                    </TableRow>
-                  )
-                }
-
-                if (student.is_privileged) {
-                  return (
-                    <TableRow key={student.id}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {fullName(student.last_name, student.first_name)}
-                          <Badge variant="secondary">
-                            <Star className="size-3" aria-hidden />
-                            Пільга
-                          </Badge>
-                        </div>
-                      </TableCell>
-                      <TableCell colSpan={items.length}>
-                        <label className="flex items-center gap-2 text-sm">
-                          <Checkbox
-                            checked={chosen !== undefined}
-                            disabled={closed}
-                            onCheckedChange={(value) => togglePrivileged(student, value === true)}
-                          />
-                          Комплекс — обирати страви не потрібно
-                        </label>
                       </TableCell>
                     </TableRow>
                   )
@@ -376,7 +340,15 @@ export default function ClassOrdersPage() {
                 return (
                   <TableRow key={student.id}>
                     <TableCell className="font-medium">
-                      {fullName(student.last_name, student.first_name)}
+                      <div className="flex items-center gap-2">
+                        {fullName(student.last_name, student.first_name)}
+                        {student.is_privileged ? (
+                          <Badge variant="secondary">
+                            <Star className="size-3" aria-hidden />
+                            Пільга
+                          </Badge>
+                        ) : null}
+                      </div>
                     </TableCell>
                     {items.map((item) => (
                       <TableCell key={item.id}>

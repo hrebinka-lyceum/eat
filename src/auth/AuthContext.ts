@@ -9,7 +9,8 @@ export interface AuthState {
   role: UserRole | null
   /** Профіль вимагає зміни пароля — до неї не пускаємо нікуди */
   mustChangePassword: boolean
-  signIn: (email: string, password: string) => Promise<void>
+  /** Приймає логін (або стару пошту) і пароль */
+  signIn: (login: string, password: string) => Promise<void>
   signOut: () => Promise<void>
   refreshProfile: () => Promise<void>
 }

@@ -18,6 +18,15 @@ interface Skipped {
  * вікно закривають. Через react-query вони не проходять навмисно: кеш
  * пережив би закриття вікна, а сервер віддає пароль лише один раз.
  */
+/**
+ * Edge Function повертає повну адресу (petrenko.o@school.local), а входять
+ * тепер за логіном — тією частиною, що до «@». Видаємо саме її, щоб
+ * людині не доводилося вгадувати, що з написаного вводити.
+ */
+function loginPart(email: string): string {
+  return email.split('@')[0]
+}
+
 export function useCredentialsFlow() {
   const queryClient = useQueryClient()
   const [credentials, setCredentials] = useState<Credential[] | null>(null)
@@ -52,7 +61,7 @@ export function useCredentialsFlow() {
           setCredentials(
             result.issued.map((item) => ({
               full_name: item.full_name,
-              login: item.login,
+              login: loginPart(item.login),
               password: item.password,
             })),
           )
@@ -104,7 +113,11 @@ export function useCredentialsFlow() {
         await queryClient.invalidateQueries({ queryKey: ['classes'] })
         setTitle('Співробітника створено')
         setCredentials([
-          { full_name: result.full_name, login: result.login, password: result.password },
+          {
+            full_name: result.full_name,
+            login: loginPart(result.login),
+            password: result.password,
+          },
         ])
         return true
       } catch (error) {

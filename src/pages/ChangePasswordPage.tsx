@@ -7,8 +7,8 @@ import { changePassword } from '@/api/auth'
 import { clearMustChangePassword } from '@/api/profiles'
 import { humanError } from '@/lib/errors'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/common/PasswordInput'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ErrorState } from '@/components/common/states'
 
@@ -75,25 +75,23 @@ export default function ChangePasswordPage() {
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="new-password">Новий пароль</Label>
-              <Input
+              <PasswordInput
                 id="new-password"
-                type="password"
                 autoComplete="new-password"
                 required
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={setPassword}
               />
               <p className="text-xs text-muted-foreground">Щонайменше {MIN_LENGTH} символів.</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="repeat-password">Повторіть пароль</Label>
-              <Input
+              <PasswordInput
                 id="repeat-password"
-                type="password"
                 autoComplete="new-password"
                 required
                 value={repeat}
-                onChange={(e) => setRepeat(e.target.value)}
+                onChange={setRepeat}
               />
             </div>
 

@@ -47,8 +47,7 @@ export default function StudentConfirmPage() {
   if (error) return <ErrorState error={error} />
   if (!student || !day || day.menu_date !== state.menuDate) return <Navigate to="/me" replace />
 
-  const privileged = student.is_privileged
-  const chosen = privileged ? items : items.filter((item) => state.menuItemIds.includes(item.id))
+  const chosen = items.filter((item) => state.menuItemIds.includes(item.id))
 
   const groups = CATEGORY_ORDER.map((category) => ({
     category,
@@ -65,9 +64,6 @@ export default function StudentConfirmPage() {
       </div>
 
       <div className="space-y-3 rounded-xl border p-4">
-        {privileged ? (
-          <p className="text-sm text-muted-foreground">Повний комплекс:</p>
-        ) : null}
         {groups.map((group) => (
           <div key={group.category}>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

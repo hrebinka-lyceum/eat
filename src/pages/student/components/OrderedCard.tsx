@@ -25,10 +25,6 @@ export function OrderedCard({ order }: { order: OrderPlain }) {
         </div>
       </div>
 
-      {order.privileged_at_order ? (
-        <p className="text-sm text-muted-foreground">Тобі покладений повний комплекс.</p>
-      ) : null}
-
       <div className="space-y-3">
         {groups.map((group) => (
           <div key={group.category}>

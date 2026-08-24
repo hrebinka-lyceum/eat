@@ -97,80 +97,42 @@ export default function StudentMenuPage() {
         </div>
       ) : null}
 
-      {student.is_privileged ? (
-        // Пільговому вибору немає: комплекс покладений повністю.
-        <div className="space-y-4">
-          <div className="rounded-xl border p-4">
-            <p className="font-medium">Тобі покладений повний комплекс</p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Обирати нічого не треба — ось що буде в цей день:
+      {/* Пільговий учень обирає страви так само, як усі: різниця між ним
+          і рештою — тільки в тому, хто платить, а не в тому, що подають. */}
+      <div className="space-y-5">
+        {groups.map((group) => (
+          <div key={group.category} className="space-y-2">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+              {CATEGORY_LABELS[group.category]}
+              {SINGLE_CHOICE.includes(group.category) ? ' — одна страва' : ''}
             </p>
-            <div className="mt-3 space-y-3">
-              {groups.map((group) => (
-                <div key={group.category}>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                    {CATEGORY_LABELS[group.category]}
-                  </p>
-                  <ul className="mt-1 space-y-0.5">
-                    {group.items.map((item) => (
-                      <li key={item.id} className="text-base">
-                        {item.dishes.name}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
+            {group.items.map((item) => (
+              <DishCard
+                key={item.id}
+                name={item.dishes.name}
+                selected={selected.includes(item.id)}
+                onToggle={() => (closed ? undefined : toggle(item))}
+              />
+            ))}
           </div>
+        ))}
+      </div>
 
-          {!closed ? (
+      {!closed ? (
+        <div className="fixed inset-x-0 bottom-16 z-10 border-t bg-background p-3">
+          <div className="mx-auto max-w-md">
             <Button
               size="lg"
               className="h-14 w-full text-base"
-              disabled={items.length === 0}
-              onClick={() => goToConfirm([])}
+              disabled={selected.length === 0}
+              onClick={() => goToConfirm(selected)}
             >
-              Замовити
+              {selected.length === 0 ? 'Обери страви' : `Далі — обрано ${selected.length}`}
             </Button>
-          ) : null}
-        </div>
-      ) : (
-        <>
-          <div className="space-y-5">
-            {groups.map((group) => (
-              <div key={group.category} className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {CATEGORY_LABELS[group.category]}
-                  {SINGLE_CHOICE.includes(group.category) ? ' — одна страва' : ''}
-                </p>
-                {group.items.map((item) => (
-                  <DishCard
-                    key={item.id}
-                    name={item.dishes.name}
-                    selected={selected.includes(item.id)}
-                    onToggle={() => (closed ? undefined : toggle(item))}
-                  />
-                ))}
-              </div>
-            ))}
           </div>
+        </div>
+      ) : null}
 
-          {!closed ? (
-            <div className="fixed inset-x-0 bottom-16 z-10 border-t bg-background p-3">
-              <div className="mx-auto max-w-md">
-                <Button
-                  size="lg"
-                  className="h-14 w-full text-base"
-                  disabled={selected.length === 0}
-                  onClick={() => goToConfirm(selected)}
-                >
-                  {selected.length === 0 ? 'Обери страви' : `Далі — обрано ${selected.length}`}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-        </>
-      )}
     </div>
   )
 }

@@ -4,16 +4,18 @@ import { UtensilsCrossed } from 'lucide-react'
 import { useAuth } from '@/auth/AuthContext'
 import { HOME_BY_ROLE } from '@/nav'
 import { humanError } from '@/lib/errors'
+import { LOGIN_PATTERN, normalizeLogin } from '@/api/auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { PasswordInput } from '@/components/common/PasswordInput'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ErrorState } from '@/components/common/states'
 
 export default function LoginPage() {
   const { userId, role, loading, mustChangePassword, signIn } = useAuth()
   const location = useLocation()
-  const [email, setEmail] = useState('')
+  const [login, setLogin] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
@@ -26,11 +28,17 @@ export default function LoginPage() {
 
   const onSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    const identifier = normalizeLogin(login)
+    if (!identifier.includes('@') && !LOGIN_PATTERN.test(identifier)) {
+      setError('Логін складається з малих латинських літер, цифр і крапки.')
+      return
+    }
+
     setBusy(true)
     setError(null)
     try {
       // Пароль живе лише в полі форми і йде прямо в Supabase.
-      await signIn(email.trim(), password)
+      await signIn(login, password)
     } catch (err) {
       setError(humanError(err, 'Не вдалося увійти.'))
     } finally {
@@ -52,28 +60,22 @@ export default function LoginPage() {
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>
             <div className="space-y-2">
-              <Label htmlFor="email">Логін</Label>
+              <Label htmlFor="login">Логін</Label>
               <Input
-                id="email"
-                type="email"
-                inputMode="email"
+                id="login"
+                type="text"
                 autoComplete="username"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 required
-                placeholder="petrenko.o@school.local"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                value={login}
+                onChange={(e) => setLogin(normalizeLogin(e.target.value))}
               />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Пароль</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
+              <PasswordInput id="password" value={password} onChange={setPassword} required />
             </div>
 
             {error ? <ErrorState error={new Error(error)} /> : null}

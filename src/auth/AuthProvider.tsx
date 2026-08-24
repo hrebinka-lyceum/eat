@@ -68,8 +68,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loadProfile])
 
   const signIn = useCallback(
-    async (email: string, password: string) => {
-      const session = await authApi.signIn(email, password)
+    async (login: string, password: string) => {
+      const session = await authApi.signInWithLogin(login, password)
       userIdRef.current = session.user.id
       setUserId(session.user.id)
       await loadProfile(session.user.id)

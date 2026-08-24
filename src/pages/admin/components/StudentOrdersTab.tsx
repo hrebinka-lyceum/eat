@@ -194,13 +194,7 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                   </Alert>
                 ) : null}
 
-                {student.is_privileged ? (
-                  <p className="text-sm text-muted-foreground">
-                    Учень пільговий — обирати страви не потрібно, буде замовлено повний
-                    комплекс.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
+                <div className="space-y-3">
                     {itemsQuery.isPending ? <LoadingState /> : null}
                     {groups.length === 0 && !itemsQuery.isPending ? (
                       <p className="text-sm text-muted-foreground">
@@ -229,13 +223,12 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                         </div>
                       </div>
                     ))}
-                  </div>
-                )}
+                </div>
 
                 <Button
                   disabled={
                     submit.isPending ||
-                    (!student.is_privileged && chosen.length === 0) ||
+                    chosen.length === 0 ||
                     (itemsQuery.data ?? []).length === 0
                   }
                   onClick={() => submit.mutate()}
@@ -273,7 +266,7 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-medium">{formatDateWithWeekday(order.menu_date)}</span>
                     {order.privileged_at_order ? (
-                      <Badge variant="secondary">Комплекс</Badge>
+                      <Badge variant="secondary">Пільгове</Badge>
                     ) : null}
                     {order.after_cutoff ? <Badge variant="secondary">Пізнє</Badge> : null}
                   </div>
