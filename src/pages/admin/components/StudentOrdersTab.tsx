@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, Clock, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { areOrdersOpen, listMenuDays, listMenuItemsPlain, type MenuItemPlain } from '@/api/menu'
+import { areOrdersOpen, listMenuDays, listMenuItemsPlain } from '@/api/menu'
 import { cancelOrder, listOrdersPlainOfStudent, placeOrder } from '@/api/orders'
 import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
@@ -19,7 +19,6 @@ import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Checkbox } from '@/components/ui/checkbox'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import {
@@ -31,7 +30,6 @@ import {
 } from '@/components/ui/select'
 import type { Student } from '@/types/database'
 
-const SINGLE_CHOICE = ['first', 'second']
 const DAYS_AHEAD = 30
 
 /**
@@ -45,7 +43,6 @@ export function StudentOrdersTab({ student }: { student: Student }) {
   const queryClient = useQueryClient()
   const today = toIsoDate()
   const [date, setDate] = useState<string | null>(null)
-  const [chosen, setChosen] = useState<string[]>([])
   const [toCancel, setToCancel] = useState<string | null>(null)
 
   const daysQuery = useQuery({
@@ -87,25 +84,13 @@ export function StudentOrdersTab({ student }: { student: Student }) {
     })).filter((group) => group.items.length > 0)
   }, [itemsQuery.data])
 
-  const toggle = (item: MenuItemPlain) => {
-    setChosen((current) => {
-      if (current.includes(item.id)) return current.filter((id) => id !== item.id)
-      if (SINGLE_CHOICE.includes(item.dishes.category)) {
-        const sameCategory = (itemsQuery.data ?? [])
-          .filter((other) => other.dishes.category === item.dishes.category)
-          .map((other) => other.id)
-        return [...current.filter((id) => !sameCategory.includes(id)), item.id]
-      }
-      return [...current, item.id]
-    })
-  }
-
   const submit = useMutation({
-    mutationFn: () => placeOrder(student.id, activeDate!, chosen),
+    // Замовляється весь склад дня — сніданок неподільний.
+    mutationFn: () =>
+      placeOrder(student.id, activeDate!, (itemsQuery.data ?? []).map((item) => item.id)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['orders-of-student'] })
       await queryClient.invalidateQueries({ queryKey: ['orders-of-class'] })
-      setChosen([])
       toast.success('Замовлення створено')
     },
     onError: (err) => toast.error(humanError(err)),
@@ -149,8 +134,7 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                   value={activeDate}
                   onValueChange={(value) => {
                     setDate(value)
-                    setChosen([])
-                  }}
+                                }}
                 >
                   <SelectTrigger id="order-day" className="w-56">
                     <SelectValue />
@@ -194,46 +178,37 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                   </Alert>
                 ) : null}
 
-                <div className="space-y-3">
-                    {itemsQuery.isPending ? <LoadingState /> : null}
-                    {groups.length === 0 && !itemsQuery.isPending ? (
-                      <p className="text-sm text-muted-foreground">
-                        У меню на цей день немає страв.
-                      </p>
-                    ) : null}
-                    {groups.map((group) => (
-                      <div key={group.category}>
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          {CATEGORY_LABELS[group.category]}
-                          {SINGLE_CHOICE.includes(group.category) ? ' — одна страва' : ''}
-                        </p>
-                        <div className="mt-1 space-y-1">
-                          {group.items.map((item) => (
-                            <label
-                              key={item.id}
-                              className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm"
-                            >
-                              <Checkbox
-                                checked={chosen.includes(item.id)}
-                                onCheckedChange={() => toggle(item)}
-                              />
-                              {item.dishes.name}
-                            </label>
-                          ))}
+                {/* Сніданок один на всіх: обирати нічого, лише подивитися склад. */}
+                <div className="space-y-3 rounded-lg border p-3">
+                  {itemsQuery.isPending ? <LoadingState /> : null}
+                  {groups.length === 0 && !itemsQuery.isPending ? (
+                    <p className="text-sm text-muted-foreground">
+                      Сніданок на цей день ще не складено.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm font-medium">Сніданок</p>
+                      {groups.map((group) => (
+                        <div key={group.category}>
+                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                            {CATEGORY_LABELS[group.category]}
+                          </p>
+                          <ul className="mt-1 space-y-0.5 text-sm">
+                            {group.items.map((item) => (
+                              <li key={item.id}>{item.dishes.name}</li>
+                            ))}
+                          </ul>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </>
+                  )}
                 </div>
 
                 <Button
-                  disabled={
-                    submit.isPending ||
-                    chosen.length === 0 ||
-                    (itemsQuery.data ?? []).length === 0
-                  }
+                  disabled={submit.isPending || (itemsQuery.data ?? []).length === 0}
                   onClick={() => submit.mutate()}
                 >
-                  {submit.isPending ? 'Замовляємо…' : 'Замовити'}
+                  {submit.isPending ? 'Замовляємо…' : 'Замовити сніданок'}
                 </Button>
               </>
             )}

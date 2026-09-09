@@ -39,10 +39,11 @@ const item = (id: string, name: string, category: string) => ({
   id, menu_date: DATE, dish_id: `d${id}`, dishes: { id: `d${id}`, name, category },
 })
 
+// Сніданок дня — кілька позицій, які беруться цілком.
 const items = [
   item('mi1', 'Борщ український', 'first'),
-  item('mi2', 'Суп курячий', 'first'),
-  item('mi3', 'Котлета з пюре', 'second'),
+  item('mi2', 'Котлета з пюре', 'second'),
+  item('mi3', 'Компот', 'drink'),
 ]
 
 const student = (id: string, last: string, over: Record<string, unknown> = {}) => ({
@@ -78,51 +79,32 @@ beforeEach(() => {
 })
 
 const renderPage = () => renderWithProviders(<ClassOrdersPage />, { role: 'teacher' })
-const box = (dish: string, last: string) =>
-  screen.getByRole('checkbox', { name: `${dish} для ${last}` })
+const box = (last: string) => screen.getByRole('checkbox', { name: `Сніданок для ${last}` })
+const allBox = () => screen.getByRole('checkbox', { name: 'Обрати всіх, хто ще не замовив' })
 
 describe('замовлення за клас', () => {
-  it('показує учнів і страви дня без жодної суми', async () => {
+  it('показує склад сніданку й одну галочку на учня — без жодної суми', async () => {
     const { container } = renderPage()
 
     expect(await screen.findByText('Іваненко Тест')).toBeInTheDocument()
-    expect(screen.getByText('Борщ український')).toBeInTheDocument()
+    expect(screen.getByText('Сніданок на цей день')).toBeInTheDocument()
+    expect(screen.getByText(/Борщ український · Котлета з пюре · Компот/)).toBeInTheDocument()
+
+    // Одна галочка на учня, а не сітка «учень × страви».
+    expect(box('Іваненко')).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /Борщ український для/ })).not.toBeInTheDocument()
     expect(hasMoney(container)).toBe(false)
   })
 
-  it('пільговий учень має такі самі чекбокси, як усі', async () => {
+  it('пільговий учень — така сама галочка, лише з позначкою', async () => {
     renderPage()
     await screen.findByText('Петренко Тест')
 
-    // Пільга лишається позначкою, але не режимом «комплекс без вибору».
     expect(screen.getByText('Пільга')).toBeInTheDocument()
-    expect(box('Борщ український', 'Петренко')).toBeInTheDocument()
+    expect(box('Петренко')).toBeInTheDocument()
   })
 
-  // Те саме правило перевіряє place_order на сервері; UI не має його порушувати.
-  it('у першій страві вибір заміщується, а не додається', async () => {
-    renderPage()
-    await screen.findByText('Іваненко Тест')
-
-    await userEvent.click(box('Борщ український', 'Іваненко'))
-    await userEvent.click(box('Суп курячий', 'Іваненко'))
-
-    expect(box('Борщ український', 'Іваненко')).not.toBeChecked()
-    expect(box('Суп курячий', 'Іваненко')).toBeChecked()
-  })
-
-  it('перше й друге можна обрати одночасно', async () => {
-    renderPage()
-    await screen.findByText('Іваненко Тест')
-
-    await userEvent.click(box('Борщ український', 'Іваненко'))
-    await userEvent.click(box('Котлета з пюре', 'Іваненко'))
-
-    expect(box('Борщ український', 'Іваненко')).toBeChecked()
-    expect(box('Котлета з пюре', 'Іваненко')).toBeChecked()
-  })
-
-  it('«усім» відмічає страву кожному, хто ще не замовив', async () => {
+  it('«обрати всіх» відмічає кожного, хто ще не замовив', async () => {
     listOrdersPlainOfClass.mockResolvedValue([
       {
         id: 'o1', menu_date: DATE, student_id: 's3', class_id: 'c1',
@@ -133,22 +115,22 @@ describe('замовлення за клас', () => {
     renderPage()
     await screen.findByText('Іваненко Тест')
 
-    const header = screen.getByText('Борщ український').closest('th')!
-    await userEvent.click(within(header).getByRole('button', { name: 'усім' }))
+    await userEvent.click(allBox())
 
-    expect(box('Борщ український', 'Іваненко')).toBeChecked()
-    expect(box('Борщ український', 'Петренко')).toBeChecked()
-    // Сидоренко вже замовив — його рядок лише для читання.
-    expect(screen.getByText(/Замовлено: Борщ український/)).toBeInTheDocument()
+    expect(box('Іваненко')).toBeChecked()
+    expect(box('Петренко')).toBeChecked()
+    // Сидоренко вже замовив — галочки в нього немає взагалі.
+    expect(screen.getByText('Замовлено')).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /для Сидоренко/ })).not.toBeInTheDocument()
   })
 
-  it('замовляє через place_order по одному виклику на учня', async () => {
+  // Головне: кожному обраному замовляється ВЕСЬ склад дня.
+  it('замовляє весь сніданок кожному обраному окремим викликом', async () => {
     renderPage()
     await screen.findByText('Іваненко Тест')
 
-    await userEvent.click(box('Борщ український', 'Іваненко'))
-    await userEvent.click(box('Котлета з пюре', 'Петренко'))
+    await userEvent.click(box('Іваненко'))
+    await userEvent.click(box('Петренко'))
     await userEvent.click(screen.getByRole('button', { name: 'Замовити' }))
 
     const dialog = await screen.findByRole('dialog')
@@ -156,8 +138,8 @@ describe('замовлення за клас', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Замовити' }))
 
     await waitFor(() => expect(placeOrder).toHaveBeenCalledTimes(2))
-    expect(placeOrder).toHaveBeenCalledWith('s1', DATE, ['mi1'])
-    expect(placeOrder).toHaveBeenCalledWith('s2', DATE, ['mi3'])
+    expect(placeOrder).toHaveBeenCalledWith('s1', DATE, ['mi1', 'mi2', 'mi3'])
+    expect(placeOrder).toHaveBeenCalledWith('s2', DATE, ['mi1', 'mi2', 'mi3'])
   })
 
   it('якщо частина замовлень не пройшла — винних названо поіменно', async () => {
@@ -168,8 +150,8 @@ describe('замовлення за клас', () => {
     renderPage()
     await screen.findByText('Іваненко Тест')
 
-    await userEvent.click(box('Борщ український', 'Іваненко'))
-    await userEvent.click(box('Борщ український', 'Петренко'))
+    await userEvent.click(box('Іваненко'))
+    await userEvent.click(box('Петренко'))
     await userEvent.click(screen.getByRole('button', { name: 'Замовити' }))
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: 'Замовити' }))
@@ -190,8 +172,8 @@ describe('замовлення за клас', () => {
     // бо його запит легший.
     await screen.findByText('Іваненко Тест')
     expect(screen.getByText(/Час прийому замовлень на цей день минув/)).toBeInTheDocument()
-    expect(box('Борщ український', 'Іваненко')).toBeDisabled()
-    expect(screen.queryByRole('button', { name: 'усім' })).not.toBeInTheDocument()
+    expect(box('Іваненко')).toBeDisabled()
+    expect(screen.queryByRole('checkbox', { name: 'Обрати всіх, хто ще не замовив' })).not.toBeInTheDocument()
   })
 
   it('без опублікованих днів пропонує звернутися до їдальні', async () => {
@@ -206,8 +188,6 @@ describe('замовлення за клас', () => {
     getClassOfTeacher.mockResolvedValue(null)
     renderPage()
 
-    expect(
-      await screen.findByText(/За вами не закріплено клас/),
-    ).toBeInTheDocument()
+    expect(await screen.findByText(/За вами не закріплено клас/)).toBeInTheDocument()
   })
 })

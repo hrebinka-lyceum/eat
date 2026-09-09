@@ -36,7 +36,7 @@ export function DishPicker({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Додати страву</CardTitle>
+        <CardTitle className="text-base">Додати до сніданку</CardTitle>
         <CardDescription>Ціна підставиться з довідника.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -85,7 +85,7 @@ export function DishPicker({
                         size="sm"
                         variant={used ? 'ghost' : 'outline'}
                         disabled={used || disabled}
-                        aria-label={`Додати ${dish.name} до меню`}
+                        aria-label={`Додати ${dish.name} до сніданку`}
                         onClick={() => onAdd(dish)}
                       >
                         {used ? (

@@ -1,21 +1,23 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarOff, Clock, Info } from 'lucide-react'
+import { CalendarOff, Clock, Info, UtensilsCrossed } from 'lucide-react'
 import { useStudentDay } from '@/hooks/useStudentDay'
 import { CATEGORY_LABELS, CATEGORY_ORDER, formatCutoffTime, formatDateWithWeekday } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingState } from '@/components/common/states'
-import { DishCard } from './components/DishCard'
 import { OrderedCard } from './components/OrderedCard'
-import type { MenuItemPlain } from '@/api/menu'
 
-/** У цих категоріях можна обрати лише одну страву — так само вважає сервер. */
-const SINGLE_CHOICE: Array<MenuItemPlain['dishes']['category']> = ['first', 'second']
-
+/**
+ * Екран учня.
+ *
+ * Сніданок на день один: їдальня складає його з кількох позицій, а учень
+ * лише вирішує, брати чи ні. Вибору страв тут немає навмисно — інакше
+ * довелося б пояснювати дитині, чим «перша страва» відрізняється від
+ * «другої», і навіщо вона взагалі має це вирішувати.
+ */
 export default function StudentMenuPage() {
   const navigate = useNavigate()
   const { student, day, items, order, ordersOpen, isPending, error } = useStudentDay()
-  const [selected, setSelected] = useState<string[]>([])
 
   const groups = useMemo(
     () =>
@@ -60,26 +62,10 @@ export default function StudentMenuPage() {
   if (order) return <OrderedCard order={order} />
 
   const closed = ordersOpen === false
-  const toggle = (item: MenuItemPlain) => {
-    const category = item.dishes.category
-    setSelected((current) => {
-      if (current.includes(item.id)) return current.filter((id) => id !== item.id)
-      if (SINGLE_CHOICE.includes(category)) {
-        const sameCategory = items
-          .filter((other) => other.dishes.category === category)
-          .map((other) => other.id)
-        return [...current.filter((id) => !sameCategory.includes(id)), item.id]
-      }
-      return [...current, item.id]
-    })
-  }
-
-  const goToConfirm = (ids: string[]) => {
-    navigate('/me/confirm', { state: { menuDate: day.menu_date, menuItemIds: ids } })
-  }
+  const empty = items.length === 0
 
   return (
-    <div className="space-y-5 pb-20">
+    <div className="space-y-5 pb-24">
       <div>
         <h1 className="text-lg font-semibold">{formatDateWithWeekday(day.menu_date)}</h1>
         <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -92,47 +78,67 @@ export default function StudentMenuPage() {
         <div className="rounded-xl border-2 border-dashed p-4 text-center">
           <p className="font-medium">Час прийому замовлень минув</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Замовити на цей день уже не вийде. Меню нижче — просто подивитися.
+            Замовити на цей день уже не вийде. Сніданок нижче — просто подивитися.
           </p>
         </div>
       ) : null}
 
-      {/* Пільговий учень обирає страви так само, як усі: різниця між ним
-          і рештою — тільки в тому, хто платить, а не в тому, що подають. */}
-      <div className="space-y-5">
-        {groups.map((group) => (
-          <div key={group.category} className="space-y-2">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {CATEGORY_LABELS[group.category]}
-              {SINGLE_CHOICE.includes(group.category) ? ' — одна страва' : ''}
-            </p>
-            {group.items.map((item) => (
-              <DishCard
-                key={item.id}
-                name={item.dishes.name}
-                selected={selected.includes(item.id)}
-                onToggle={() => (closed ? undefined : toggle(item))}
-              />
+      {empty ? (
+        <div className="rounded-xl border-2 border-dashed p-4 text-center">
+          <p className="font-medium">Сніданок на цей день ще не складено</p>
+          <p className="mt-1 text-sm text-muted-foreground">Загляни трохи пізніше.</p>
+        </div>
+      ) : (
+        <div className="rounded-xl border p-4">
+          <div className="flex items-center gap-2">
+            <UtensilsCrossed className="size-5 text-muted-foreground" aria-hidden />
+            <p className="font-medium">Сніданок</p>
+          </div>
+
+          <div className="mt-3 space-y-3">
+            {groups.map((group) => (
+              <div key={group.category}>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {CATEGORY_LABELS[group.category]}
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {group.items.map((item) => (
+                    <li key={item.id} className="text-base">
+                      {item.dishes.name}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
           </div>
-        ))}
-      </div>
 
-      {!closed ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Сніданок один на всіх — обирати нічого не треба. Просто скажи, чи будеш.
+          </p>
+        </div>
+      )}
+
+      {!closed && !empty ? (
         <div className="fixed inset-x-0 bottom-16 z-10 border-t bg-background p-3">
           <div className="mx-auto max-w-md">
             <Button
               size="lg"
               className="h-14 w-full text-base"
-              disabled={selected.length === 0}
-              onClick={() => goToConfirm(selected)}
+              onClick={() =>
+                navigate('/me/confirm', {
+                  state: {
+                    menuDate: day.menu_date,
+                    // Сніданок замовляється цілком: усі позиції дня.
+                    menuItemIds: items.map((item) => item.id),
+                  },
+                })
+              }
             >
-              {selected.length === 0 ? 'Обери страви' : `Далі — обрано ${selected.length}`}
+              Замовити
             </Button>
           </div>
         </div>
       ) : null}
-
     </div>
   )
 }

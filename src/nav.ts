@@ -1,6 +1,7 @@
 import {
   CalendarCheck,
   CalendarDays,
+  CalendarRange,
   ChartColumn,
   ClipboardList,
   CookingPot,
@@ -60,6 +61,13 @@ export const NAV_ITEMS: NavItem[] = [
     to: '/kitchen',
     label: 'Порції на день',
     icon: CookingPot,
+    roles: ['cafeteria', 'admin', 'superadmin'],
+    group: 'work',
+  },
+  {
+    to: '/kitchen/stats',
+    label: 'Замовлення по днях',
+    icon: CalendarRange,
     roles: ['cafeteria', 'admin', 'superadmin'],
     group: 'work',
   },

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, Star, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import { areOrdersOpen, listMenuItemsPlain, type MenuItemPlain } from '@/api/menu'
+import { areOrdersOpen, listMenuItemsPlain } from '@/api/menu'
 import { listOrdersPlainOfClass, placeOrder } from '@/api/orders'
 import { listStudentsOfClass } from '@/api/students'
 import { useMyClass } from '@/hooks/useMyClass'
@@ -11,11 +11,11 @@ import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
 import { csvFilename } from '@/lib/csv'
 import {
-  CATEGORY_LABELS,
   CATEGORY_ORDER,
   formatCutoff,
   formatDateWithWeekday,
   fullName,
+  plural,
 } from '@/lib/format'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
@@ -34,19 +34,19 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { PublishedDaySelect } from './components/PublishedDaySelect'
-import type { Student } from '@/types/database'
 
-/** Обрані страви за учнями. Ключ є — учень бере участь у замовленні. */
-type Selection = Record<string, string[]>
-
-const SINGLE_CHOICE = ['first', 'second']
+/**
+ * Обрані учні. Сніданок один на всіх, тож вибирати нічого, крім «буде / не буде»:
+ * кожному обраному замовляється весь склад дня.
+ */
+type Selection = Set<string>
 
 export default function ClassOrdersPage() {
   const queryClient = useQueryClient()
   const { myClass, isPending: classPending, error: classError } = useMyClass()
   const { days, isPending: daysPending } = usePublishedDays()
   const [day, setDay] = useState<string | null>(null)
-  const [selection, setSelection] = useState<Selection>({})
+  const [selection, setSelection] = useState<Selection>(new Set())
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [failures, setFailures] = useState<Array<{ name: string; reason: string }>>([])
 
@@ -105,61 +105,32 @@ export default function ClassOrdersPage() {
 
   const closed = openQuery.data === false
   const pending = students.filter((student) => !ordersByStudent.has(student.id))
-  const chosenCount = Object.keys(selection).length
 
-  const toggleDish = (student: Student, item: MenuItemPlain) => {
+  const chosenCountLabel = plural(selection.size, 'учня', 'учнів', 'учнів')
+
+  const toggleStudent = (studentId: string, include: boolean) => {
     setSelection((current) => {
-      const currentIds = current[student.id] ?? []
-      let nextIds: string[]
-
-      if (currentIds.includes(item.id)) {
-        nextIds = currentIds.filter((id) => id !== item.id)
-      } else if (SINGLE_CHOICE.includes(item.dishes.category)) {
-        // Одне перше й одне друге — те саме правило перевіряє place_order.
-        const sameCategory = items
-          .filter((other) => other.dishes.category === item.dishes.category)
-          .map((other) => other.id)
-        nextIds = [...currentIds.filter((id) => !sameCategory.includes(id)), item.id]
-      } else {
-        nextIds = [...currentIds, item.id]
-      }
-
-      const next = { ...current }
-      if (nextIds.length === 0) delete next[student.id]
-      else next[student.id] = nextIds
+      const next = new Set(current)
+      if (include) next.add(studentId)
+      else next.delete(studentId)
       return next
     })
   }
 
-  /** Відмітити страву всім, хто ще не замовив. */
-  const assignToAll = (item: MenuItemPlain) => {
-    setSelection((current) => {
-      const next = { ...current }
-      for (const student of pending) {
-        const currentIds = next[student.id] ?? []
-        if (currentIds.includes(item.id)) continue
-        if (SINGLE_CHOICE.includes(item.dishes.category)) {
-          const sameCategory = items
-            .filter((other) => other.dishes.category === item.dishes.category)
-            .map((other) => other.id)
-          next[student.id] = [...currentIds.filter((id) => !sameCategory.includes(id)), item.id]
-        } else {
-          next[student.id] = [...currentIds, item.id]
-        }
-      }
-      return next
-    })
+  /** Відмітити всіх, хто ще не замовив, — типова дія перед першим уроком. */
+  const toggleAll = (include: boolean) => {
+    setSelection(include ? new Set(pending.map((student) => student.id)) : new Set())
   }
 
   const submit = useMutation({
     mutationFn: async () => {
-      const entries = Object.entries(selection)
       const failed: Array<{ name: string; reason: string }> = []
+      const menuItemIds = items.map((item) => item.id)
       let ok = 0
 
       // Послідовно: кожне замовлення — окремий виклик place_order, і треба
       // знати, яке саме не пройшло.
-      for (const [studentId, menuItemIds] of entries) {
+      for (const studentId of selection) {
         const student = students.find((s) => s.id === studentId)
         try {
           await placeOrder(studentId, activeDay!, menuItemIds)
@@ -177,7 +148,7 @@ export default function ClassOrdersPage() {
       await queryClient.invalidateQueries({ queryKey: ['orders-of-class'] })
       setConfirmOpen(false)
       setFailures(failed)
-      setSelection({})
+      setSelection(new Set())
       if (ok > 0) toast.success(`Замовлено для ${ok} ${ok === 1 ? 'учня' : 'учнів'}`)
       if (failed.length > 0) toast.error(`Не вдалося: ${failed.length}`)
     },
@@ -206,7 +177,7 @@ export default function ClassOrdersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Замовлення класу"
-        description="Відмітьте страви й замовте одразу для кількох учнів."
+        description="Сніданок один на всіх — відмітьте, хто буде снідати."
         actions={
           <ExportButton
             rows={students}
@@ -229,7 +200,7 @@ export default function ClassOrdersPage() {
           value={activeDay}
           onChange={(value) => {
             setDay(value)
-            setSelection({})
+            setSelection(new Set())
             setFailures([])
           }}
         />
@@ -289,99 +260,89 @@ export default function ClassOrdersPage() {
       ) : null}
 
       {activeDay && students.length > 0 && items.length > 0 ? (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="min-w-48">Учень</TableHead>
-                {items.map((item) => (
-                  <TableHead key={item.id} className="min-w-28 align-bottom">
-                    <div className="space-y-1">
-                      <p className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
-                        {CATEGORY_LABELS[item.dishes.category]}
-                      </p>
-                      <p className="font-medium text-foreground">{item.dishes.name}</p>
-                      {!closed ? (
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          onClick={() => assignToAll(item)}
-                          disabled={pending.length === 0}
-                        >
-                          усім
-                        </Button>
+        <>
+          {/* Керівник має бачити, що саме він замовляє, — склад дня один на всіх. */}
+          <div className="rounded-lg border p-3">
+            <p className="text-sm font-medium">Сніданок на цей день</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {items.map((item) => item.dishes.name).join(' · ')}
+            </p>
+          </div>
+
+          <div className="overflow-x-auto rounded-lg border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="min-w-56">Учень</TableHead>
+                  <TableHead className="w-56">
+                    <div className="flex items-center gap-3">
+                      <span>Буде снідати</span>
+                      {!closed && pending.length > 0 ? (
+                        <Checkbox
+                          aria-label="Обрати всіх, хто ще не замовив"
+                          checked={selection.size > 0 && selection.size === pending.length}
+                          onCheckedChange={(value) => toggleAll(value === true)}
+                        />
                       ) : null}
                     </div>
                   </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {students.map((student) => {
-                const ordered = ordersByStudent.get(student.id)
-                const chosen = selection[student.id]
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {students.map((student) => {
+                  const ordered = ordersByStudent.get(student.id)
 
-                if (ordered) {
                   return (
-                    <TableRow key={student.id} className="bg-muted/30">
+                    <TableRow key={student.id} className={ordered ? 'bg-muted/30' : undefined}>
                       <TableCell className="font-medium">
-                        {fullName(student.last_name, student.first_name)}
+                        <div className="flex items-center gap-2">
+                          {fullName(student.last_name, student.first_name)}
+                          {student.is_privileged ? (
+                            <Badge variant="secondary">
+                              <Star className="size-3" aria-hidden />
+                              Пільга
+                            </Badge>
+                          ) : null}
+                        </div>
                       </TableCell>
-                      <TableCell colSpan={items.length}>
-                        <span className="inline-flex items-center gap-1.5 text-sm">
-                          <CircleCheck className="size-4 text-primary" aria-hidden />
-                          Замовлено: {ordered.join(', ') || 'склад невідомий'}
-                        </span>
+                      <TableCell>
+                        {ordered ? (
+                          <span className="inline-flex items-center gap-1.5 text-sm">
+                            <CircleCheck className="size-4 text-primary" aria-hidden />
+                            Замовлено
+                          </span>
+                        ) : (
+                          <Checkbox
+                            checked={selection.has(student.id)}
+                            disabled={closed}
+                            aria-label={`Сніданок для ${student.last_name}`}
+                            onCheckedChange={(value) => toggleStudent(student.id, value === true)}
+                          />
+                        )}
                       </TableCell>
                     </TableRow>
                   )
-                }
-
-                return (
-                  <TableRow key={student.id}>
-                    <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {fullName(student.last_name, student.first_name)}
-                        {student.is_privileged ? (
-                          <Badge variant="secondary">
-                            <Star className="size-3" aria-hidden />
-                            Пільга
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </TableCell>
-                    {items.map((item) => (
-                      <TableCell key={item.id}>
-                        <Checkbox
-                          checked={(chosen ?? []).includes(item.id)}
-                          disabled={closed}
-                          aria-label={`${item.dishes.name} для ${student.last_name}`}
-                          onCheckedChange={() => toggleDish(student, item)}
-                        />
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
+                })}
+              </TableBody>
+            </Table>
+          </div>
+        </>
       ) : null}
 
       {activeDay && items.length === 0 && !itemsQuery.isPending ? (
         <EmptyState
-          title="У меню на цей день немає страв"
+          title="Сніданок на цей день ще не складено"
           hint="Зверніться до працівника їдальні."
         />
       ) : null}
 
-      {chosenCount > 0 && !closed ? (
+      {selection.size > 0 && !closed ? (
         <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-background p-3 shadow-sm">
           <p className="text-sm">
-            Обрано учнів: <strong>{chosenCount}</strong>
+            Обрано: <strong>{selection.size}</strong> {chosenCountLabel}
           </p>
           <div className="flex gap-2">
-            <Button variant="ghost" onClick={() => setSelection({})}>
+            <Button variant="ghost" onClick={() => setSelection(new Set())}>
               Зняти вибір
             </Button>
             <Button onClick={() => setConfirmOpen(true)}>Замовити</Button>
@@ -392,7 +353,7 @@ export default function ClassOrdersPage() {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`Замовити для ${chosenCount} ${chosenCount === 1 ? 'учня' : 'учнів'}?`}
+        title={`Замовити сніданок для ${selection.size} ${chosenCountLabel}?`}
         description={
           <>
             {activeDay ? `На ${formatDateWithWeekday(activeDay)}. ` : ''}

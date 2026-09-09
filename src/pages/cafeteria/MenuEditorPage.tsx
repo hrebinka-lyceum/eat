@@ -160,7 +160,7 @@ export default function MenuEditorPage() {
 
   const onPublishClick = () => {
     if (items.length === 0) {
-      toast.error('Меню порожнє — спершу додайте страви.')
+      toast.error('Сніданок порожній — спершу додайте страви.')
       return
     }
     setPublishOpen(true)
@@ -172,7 +172,7 @@ export default function MenuEditorPage() {
     <div className="space-y-6">
       <PageHeader
         title="Редактор меню"
-        description="Щоденний режим: відкривається найближчий незаповнений день."
+        description="Сніданок на день: кілька позицій, які учень бере або не бере цілком."
         actions={
           <>
             <ExportButton
@@ -267,9 +267,9 @@ export default function MenuEditorPage() {
             <div className="space-y-4">
               {grouped.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-8 text-center">
-                  <p className="font-medium">Меню на цей день порожнє</p>
+                  <p className="font-medium">Сніданок на цей день ще не складено</p>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Додайте страви праворуч або скопіюйте склад з іншого дня.
+                    Додайте позиції праворуч або скопіюйте склад з іншого дня.
                   </p>
                 </div>
               ) : null}

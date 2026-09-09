@@ -44,6 +44,7 @@ import PurgeLogPage from '@/pages/superadmin/PurgeLogPage'
 // бандла. Учневі, який відкриває меню з телефона, вона не потрібна,
 // тож вантажимо її лише там, де справді малюємо графіки.
 const PortionsPage = lazy(() => import('@/pages/cafeteria/PortionsPage'))
+const OrderStatsPage = lazy(() => import('@/pages/cafeteria/OrderStatsPage'))
 const SchoolDashboardPage = lazy(() => import('@/pages/admin/SchoolDashboardPage'))
 const ClassDashboardPage = lazy(() => import('@/pages/teacher/ClassDashboardPage'))
 
@@ -110,6 +111,7 @@ export default function App() {
 
                     <Route element={<RequireRole roles={['cafeteria', 'admin', 'superadmin']} />}>
                       <Route path="/kitchen" element={<PortionsPage />} />
+                      <Route path="/kitchen/stats" element={<OrderStatsPage />} />
                       <Route path="/menu" element={<MenuEditorPage />} />
                       <Route path="/dishes" element={<DishesPage />} />
                     </Route>

@@ -47,6 +47,8 @@ export default function StudentConfirmPage() {
   if (error) return <ErrorState error={error} />
   if (!student || !day || day.menu_date !== state.menuDate) return <Navigate to="/me" replace />
 
+  // Сніданок замовляється цілком, тож показуємо весь склад — але саме той,
+  // який учень бачив на попередньому екрані.
   const chosen = items.filter((item) => state.menuItemIds.includes(item.id))
 
   const groups = CATEGORY_ORDER.map((category) => ({
@@ -64,6 +66,7 @@ export default function StudentConfirmPage() {
       </div>
 
       <div className="space-y-3 rounded-xl border p-4">
+        <p className="font-medium">Сніданок</p>
         {groups.map((group) => (
           <div key={group.category}>
             <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">

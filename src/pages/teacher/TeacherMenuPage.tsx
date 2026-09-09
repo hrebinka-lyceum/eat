@@ -73,7 +73,7 @@ export default function TeacherMenuPage() {
     <div className="space-y-6">
       <PageHeader
         title="Меню"
-        description="Опубліковані дні на найближчі два тижні."
+        description="Сніданок на кожен опублікований день. Учень бере його цілком або ні."
         actions={
           <ExportButton
             rows={csvRows}

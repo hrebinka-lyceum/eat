@@ -29,12 +29,13 @@ export const CATEGORY_LABELS: Record<DishCategory, string> = {
 export const CATEGORY_ORDER: DishCategory[] = ['first', 'second', 'side', 'drink', 'bakery']
 
 /**
- * Категорії, які можна обрати для нової страви.
+ * Категорії, доступні для нової страви — усі п'ять.
  *
- * Гарнір, напій і випічка йдуть у комплекті з другою стравою, тож окремими
- * позиціями меню вони більше не є.
+ * Сніданок складається з кількох позицій із власними цінами (каша, чай,
+ * булочка), тож гарнір, напій і випічка знову є самостійними стравами
+ * довідника, а не «додатком до другої».
  */
-export const SELECTABLE_CATEGORIES: DishCategory[] = ['first', 'second']
+export const SELECTABLE_CATEGORIES: DishCategory[] = CATEGORY_ORDER
 
 export const MENU_STATUS_LABELS: Record<MenuStatus, string> = {
   draft: 'Чернетка',
