@@ -4,7 +4,8 @@ import { Printer } from 'lucide-react'
 import { classCoverage, costRows, dailyTotals, ordersByDish } from '@/api/stats'
 import { useCanSeeCost } from '@/auth/permissions'
 import { qk } from '@/lib/queryKeys'
-import { CATEGORY_LABELS, CATEGORY_ORDER, formatDateWithWeekday, formatMoney, toIsoDate } from '@/lib/format'
+import { formatDateWithWeekday, formatMoney, toIsoDate } from '@/lib/format'
+import { compareClassNames } from '@/lib/grades'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
@@ -14,7 +15,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -24,9 +24,9 @@ import { DayPicker } from './components/DayPicker'
 /**
  * Головний екран їдальні: скільки чого готувати цього дня.
  *
- * Вартість тут показується, бо екран доступний лише їдальні та
- * адміністрації. Але total_cost із представлень все одно може прийти
- * як null — тоді формат покаже риску, а не 0,00.
+ * Вартість показується підсумком за день, а не за компонент: кухар указує
+ * одну суму на все блюдо, тож у представленні вона лежить на одній позиції.
+ * Розписувати її по компонентах означало б вигадувати числа.
  */
 export default function PortionsPage() {
   const [date, setDate] = useState(toIsoDate())
@@ -58,10 +58,9 @@ export default function PortionsPage() {
 
   const dishes = useMemo(
     () =>
-      [...(dishesQuery.data ?? [])].sort((a, b) => {
-        const byCategory = CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category)
-        return byCategory !== 0 ? byCategory : a.dish_name.localeCompare(b.dish_name, 'uk')
-      }),
+      [...(dishesQuery.data ?? [])].sort((a, b) =>
+        a.dish_name.localeCompare(b.dish_name, 'uk'),
+      ),
     [dishesQuery.data],
   )
 
@@ -79,11 +78,10 @@ export default function PortionsPage() {
     () =>
       [...(coverageQuery.data ?? [])]
         .filter((row) => row.students_ordered > 0)
-        .sort((a, b) => a.class_name.localeCompare(b.class_name, 'uk')),
+        .sort((a, b) => compareClassNames(a.class_name, b.class_name)),
     [coverageQuery.data],
   )
 
-  const portionsTotal = dishes.reduce((sum, dish) => sum + dish.portions, 0)
   const dayCost = dishes.reduce((sum, dish) => sum + (dish.total_cost ?? 0), 0)
   const anyCost = dishes.some((dish) => dish.total_cost !== null)
 
@@ -94,7 +92,7 @@ export default function PortionsPage() {
     <div className="space-y-6" data-print="sheet">
       <PageHeader
         title="Порції на день"
-        description="Скільки чого готувати. Пільгові та пізні замовлення — окремими колонками."
+        description="Скільки яких компонентів готувати. Пільгові та пізні замовлення — окремими колонками."
         actions={
           <>
             <ExportButton
@@ -102,14 +100,11 @@ export default function PortionsPage() {
               filename={`порції-${date}.csv`}
               columns={[
                 { header: 'Дата', value: () => date },
-                { header: 'Категорія', value: (d) => CATEGORY_LABELS[d.category] },
-                { header: 'Страва', value: (d) => d.dish_name },
+                { header: 'Компонент', value: (d) => d.dish_name },
                 { header: 'Порцій', value: (d) => d.portions },
                 { header: 'З них пільгових', value: (d) => d.portions_privileged },
                 { header: 'Після дедлайну', value: (d) => d.portions_late },
-                ...(canSeeCost
-                  ? [{ header: 'Вартість, ₴', value: (d: (typeof dishes)[number]) => d.total_cost ?? '' }]
-                  : []),
+
               ]}
             />
             <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -134,15 +129,16 @@ export default function PortionsPage() {
       {!loading && !error ? (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatTile label="Порцій усього" value={portionsTotal} emphasis />
             <StatTile
-              label="Замовлень"
+              label="Порцій блюда"
               value={totals?.orders_total ?? 0}
-              hint={
-                totals
-                  ? `пільгових ${totals.orders_privileged}, звичайних ${totals.orders_regular}`
-                  : undefined
-              }
+              hint="стільки людей буде їсти"
+              emphasis
+            />
+            <StatTile
+              label="З них пільгових"
+              value={totals?.orders_privileged ?? 0}
+              hint={totals ? `звичайних ${totals.orders_regular}` : undefined}
             />
             <StatTile
               label="Після дедлайну"
@@ -168,21 +164,18 @@ export default function PortionsPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Страва</TableHead>
-                    <TableHead>Категорія</TableHead>
+                    <TableHead>Компонент</TableHead>
                     <TableHead className="text-right">Порцій</TableHead>
                     <TableHead className="text-right">З них пільгових</TableHead>
                     <TableHead className="text-right">Після дедлайну</TableHead>
-                    {canSeeCost ? <TableHead className="text-right">Вартість</TableHead> : null}
+
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {dishes.map((dish) => (
                     <TableRow key={dish.dish_id}>
                       <TableCell className="font-medium">{dish.dish_name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {CATEGORY_LABELS[dish.category]}
-                      </TableCell>
+
                       <TableCell className="text-right text-base font-semibold tabular-nums">
                         {dish.portions}
                       </TableCell>
@@ -192,31 +185,9 @@ export default function PortionsPage() {
                       <TableCell className="text-right tabular-nums">
                         {dish.portions_late || '—'}
                       </TableCell>
-                      {canSeeCost ? (
-                        <TableCell className="text-right tabular-nums">
-                          {formatMoney(dish.total_cost)}
-                        </TableCell>
-                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={2}>Разом</TableCell>
-                    <TableCell className="text-right tabular-nums">{portionsTotal}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {dishes.reduce((sum, dish) => sum + dish.portions_privileged, 0)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {dishes.reduce((sum, dish) => sum + dish.portions_late, 0)}
-                    </TableCell>
-                    {canSeeCost ? (
-                      <TableCell className="text-right tabular-nums">
-                        {formatMoney(anyCost ? dayCost : null)}
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                </TableFooter>
               </Table>
             </div>
           )}
@@ -253,7 +224,7 @@ export default function PortionsPage() {
                       <TableHead>Клас</TableHead>
                       <TableHead className="text-right">Замовили</TableHead>
                       <TableHead className="text-right">У реєстрі</TableHead>
-                      {canSeeCost ? <TableHead className="text-right">Вартість</TableHead> : null}
+  
                     </TableRow>
                   </TableHeader>
                   <TableBody>

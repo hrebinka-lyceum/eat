@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarOff, Clock, Info, UtensilsCrossed } from 'lucide-react'
 import { useStudentDay } from '@/hooks/useStudentDay'
-import { CATEGORY_LABELS, CATEGORY_ORDER, formatCutoffTime, formatDateWithWeekday } from '@/lib/format'
+import { formatCutoffTime, formatDateWithWeekday } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingState } from '@/components/common/states'
 import { OrderedCard } from './components/OrderedCard'
@@ -10,7 +10,7 @@ import { OrderedCard } from './components/OrderedCard'
 /**
  * Екран учня.
  *
- * Сніданок на день один: їдальня складає його з кількох позицій, а учень
+ * Блюдо на день одне: їдальня складає його з кількох компонентів, а учень
  * лише вирішує, брати чи ні. Вибору страв тут немає навмисно — інакше
  * довелося б пояснювати дитині, чим «перша страва» відрізняється від
  * «другої», і навіщо вона взагалі має це вирішувати.
@@ -19,14 +19,10 @@ export default function StudentMenuPage() {
   const navigate = useNavigate()
   const { student, day, items, order, ordersOpen, isPending, error } = useStudentDay()
 
-  const groups = useMemo(
+  // Блюдо одне, склад — простий перелік компонентів.
+  const components = useMemo(
     () =>
-      CATEGORY_ORDER.map((category) => ({
-        category,
-        items: items
-          .filter((item) => item.dishes.category === category)
-          .sort((a, b) => a.dishes.name.localeCompare(b.dishes.name, 'uk')),
-      })).filter((group) => group.items.length > 0),
+      [...items].sort((a, b) => a.dishes.name.localeCompare(b.dishes.name, 'uk')),
     [items],
   )
 
@@ -78,42 +74,33 @@ export default function StudentMenuPage() {
         <div className="rounded-xl border-2 border-dashed p-4 text-center">
           <p className="font-medium">Час прийому замовлень минув</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Замовити на цей день уже не вийде. Сніданок нижче — просто подивитися.
+            Замовити на цей день уже не вийде. Блюдо нижче — просто подивитися.
           </p>
         </div>
       ) : null}
 
       {empty ? (
         <div className="rounded-xl border-2 border-dashed p-4 text-center">
-          <p className="font-medium">Сніданок на цей день ще не складено</p>
+          <p className="font-medium">Блюдо на цей день ще не складено</p>
           <p className="mt-1 text-sm text-muted-foreground">Загляни трохи пізніше.</p>
         </div>
       ) : (
         <div className="rounded-xl border p-4">
           <div className="flex items-center gap-2">
             <UtensilsCrossed className="size-5 text-muted-foreground" aria-hidden />
-            <p className="font-medium">Сніданок</p>
+            <p className="font-medium">Блюдо дня</p>
           </div>
 
-          <div className="mt-3 space-y-3">
-            {groups.map((group) => (
-              <div key={group.category}>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {CATEGORY_LABELS[group.category]}
-                </p>
-                <ul className="mt-1 space-y-0.5">
-                  {group.items.map((item) => (
-                    <li key={item.id} className="text-base">
-                      {item.dishes.name}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+          <ul className="mt-3 space-y-1">
+            {components.map((item) => (
+              <li key={item.id} className="text-base">
+                {item.dishes.name}
+              </li>
             ))}
-          </div>
+          </ul>
 
           <p className="mt-4 text-sm text-muted-foreground">
-            Сніданок один на всіх — обирати нічого не треба. Просто скажи, чи будеш.
+            Блюдо одне на всіх — обирати нічого не треба. Просто скажи, чи будеш.
           </p>
         </div>
       )}
@@ -128,7 +115,7 @@ export default function StudentMenuPage() {
                 navigate('/me/confirm', {
                   state: {
                     menuDate: day.menu_date,
-                    // Сніданок замовляється цілком: усі позиції дня.
+                    // Блюдо замовляється цілком: усі компоненти дня.
                     menuItemIds: items.map((item) => item.id),
                   },
                 })

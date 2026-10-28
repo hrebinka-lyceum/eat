@@ -21,12 +21,14 @@ const SCOPE_LABELS: Record<string, string> = {
   menus: 'меню',
   privilege_log: 'журнал пільг',
   graduated_students: 'випущені учні',
+  student: 'учень повністю',
 }
 
 function describeResult(result: unknown): string {
   const value = result as PurgeResult | null
   if (!value || typeof value !== 'object') return '—'
   const parts: string[] = []
+  if (value.student !== undefined) parts.push(value.student)
   if (value.orders !== undefined) parts.push(`замовлень ${value.orders}`)
   if (value.menu_days !== undefined) parts.push(`днів меню ${value.menu_days}`)
   if (value.privilege_log !== undefined) parts.push(`записів журналу ${value.privilege_log}`)

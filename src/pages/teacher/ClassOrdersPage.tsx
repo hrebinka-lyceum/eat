@@ -11,7 +11,6 @@ import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
 import { csvFilename } from '@/lib/csv'
 import {
-  CATEGORY_ORDER,
   formatCutoff,
   formatDateWithWeekday,
   fullName,
@@ -36,7 +35,7 @@ import {
 import { PublishedDaySelect } from './components/PublishedDaySelect'
 
 /**
- * Обрані учні. Сніданок один на всіх, тож вибирати нічого, крім «буде / не буде»:
+ * Обрані учні. Блюдо одне на всіх, тож вибирати нічого, крім «буде / не буде»:
  * кожному обраному замовляється весь склад дня.
  */
 type Selection = Set<string>
@@ -82,11 +81,9 @@ export default function ClassOrdersPage() {
   const students = studentsQuery.data ?? []
   const items = useMemo(
     () =>
-      [...(itemsQuery.data ?? [])].sort((a, b) => {
-        const byCategory =
-          CATEGORY_ORDER.indexOf(a.dishes.category) - CATEGORY_ORDER.indexOf(b.dishes.category)
-        return byCategory !== 0 ? byCategory : a.dishes.name.localeCompare(b.dishes.name, 'uk')
-      }),
+      [...(itemsQuery.data ?? [])].sort((a, b) =>
+        a.dishes.name.localeCompare(b.dishes.name, 'uk'),
+      ),
     [itemsQuery.data],
   )
 
@@ -177,7 +174,7 @@ export default function ClassOrdersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Замовлення класу"
-        description="Сніданок один на всіх — відмітьте, хто буде снідати."
+        description="Блюдо одне на всіх — відмітьте, хто буде їсти."
         actions={
           <ExportButton
             rows={students}
@@ -263,7 +260,7 @@ export default function ClassOrdersPage() {
         <>
           {/* Керівник має бачити, що саме він замовляє, — склад дня один на всіх. */}
           <div className="rounded-lg border p-3">
-            <p className="text-sm font-medium">Сніданок на цей день</p>
+            <p className="text-sm font-medium">Блюдо на цей день</p>
             <p className="mt-1 text-sm text-muted-foreground">
               {items.map((item) => item.dishes.name).join(' · ')}
             </p>
@@ -276,7 +273,7 @@ export default function ClassOrdersPage() {
                   <TableHead className="min-w-56">Учень</TableHead>
                   <TableHead className="w-56">
                     <div className="flex items-center gap-3">
-                      <span>Буде снідати</span>
+                      <span>Буде їсти</span>
                       {!closed && pending.length > 0 ? (
                         <Checkbox
                           aria-label="Обрати всіх, хто ще не замовив"
@@ -315,7 +312,7 @@ export default function ClassOrdersPage() {
                           <Checkbox
                             checked={selection.has(student.id)}
                             disabled={closed}
-                            aria-label={`Сніданок для ${student.last_name}`}
+                            aria-label={`Блюдо для ${student.last_name}`}
                             onCheckedChange={(value) => toggleStudent(student.id, value === true)}
                           />
                         )}
@@ -331,7 +328,7 @@ export default function ClassOrdersPage() {
 
       {activeDay && items.length === 0 && !itemsQuery.isPending ? (
         <EmptyState
-          title="Сніданок на цей день ще не складено"
+          title="Блюдо на цей день ще не складено"
           hint="Зверніться до працівника їдальні."
         />
       ) : null}
@@ -353,7 +350,7 @@ export default function ClassOrdersPage() {
       <ConfirmDialog
         open={confirmOpen}
         onOpenChange={setConfirmOpen}
-        title={`Замовити сніданок для ${selection.size} ${chosenCountLabel}?`}
+        title={`Замовити блюдо для ${selection.size} ${chosenCountLabel}?`}
         description={
           <>
             {activeDay ? `На ${formatDateWithWeekday(activeDay)}. ` : ''}

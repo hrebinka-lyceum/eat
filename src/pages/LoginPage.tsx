@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { PasswordInput } from '@/components/common/PasswordInput'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { ErrorState } from '@/components/common/states'
+import { APP_NAME, SCHOOL_NAME } from '@/lib/school'
 
 export default function LoginPage() {
   const { userId, role, loading, mustChangePassword, signIn } = useAuth()
@@ -52,10 +53,12 @@ export default function LoginPage() {
         <CardHeader>
           <div className="mb-2 flex items-center gap-2 text-muted-foreground">
             <UtensilsCrossed className="size-5" aria-hidden />
-            <span className="text-sm">Шкільне харчування</span>
+            <span className="text-sm">{APP_NAME}</span>
           </div>
-          <CardTitle>Вхід</CardTitle>
-          <CardDescription>Введіть логін і пароль, які вам видали в школі.</CardDescription>
+          <CardTitle>{SCHOOL_NAME}</CardTitle>
+          <CardDescription>
+            Вхід у систему харчування. Введіть логін і пароль, які вам видали в школі.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4" onSubmit={onSubmit}>

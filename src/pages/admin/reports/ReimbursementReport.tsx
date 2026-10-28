@@ -52,7 +52,7 @@ export default function ReimbursementReport() {
     enabled: Boolean(settingsQuery.data),
   })
 
-  const { rows, missingPrices } = useMemo(
+  const { rows, unpricedOrders } = useMemo(
     () =>
       aggregateReimbursement(
         costQuery.data ?? [],
@@ -102,15 +102,15 @@ export default function ReimbursementReport() {
       {costQuery.isPending ? <LoadingState /> : null}
       {costQuery.error ? <ErrorState error={costQuery.error} /> : null}
 
-      {missingPrices > 0 ? (
+      {unpricedOrders > 0 ? (
         <Alert>
           <TriangleAlert className="size-4" aria-hidden />
           <AlertTitle>Сума неповна</AlertTitle>
           <AlertDescription>
-            У замовленнях цього місяця є {missingPrices}{' '}
-            {plural(missingPrices, 'позиція', 'позиції', 'позицій')} без ціни — вони додають
-            до суми нуль. Проставте ціни в довіднику страв і повторіть звіт, інакше відшкодування
-            буде занижене.
+            {unpricedOrders} {plural(unpricedOrders, 'замовлення', 'замовлення', 'замовлень')}{' '}
+            цього місяця зроблено на дні, коли вартість блюда ще не була вказана, — вони
+            додають до суми нуль, і відшкодування буде занижене. Вартість фіксується в момент
+            замовлення, тож указувати її треба до відкриття прийому замовлень.
           </AlertDescription>
         </Alert>
       ) : null}

@@ -110,9 +110,9 @@ describe('відшкодування', () => {
   it('ділить порції й суми на пільгові та звичайні', () => {
     const { rows } = aggregateReimbursement(
       [
-        { class_id: 'c1', privileged: true, cost: 60, missing_prices: 0 },
-        { class_id: 'c1', privileged: false, cost: 40, missing_prices: 0 },
-        { class_id: 'c1', privileged: false, cost: 40, missing_prices: 0 },
+        { class_id: 'c1', privileged: true, cost: 60, unpriced: false },
+        { class_id: 'c1', privileged: false, cost: 40, unpriced: false },
+        { class_id: 'c1', privileged: false, cost: 40, unpriced: false },
       ],
       nameOf,
     )
@@ -125,34 +125,45 @@ describe('відшкодування', () => {
     })
   })
 
-  // Пастка: страва без ціни додає нуль, і звіт мовчки занижує відшкодування.
-  it('рахує позиції без ціни окремо', () => {
-    const { missingPrices } = aggregateReimbursement(
+  // Пастка: замовлення на день без вартості блюда додає нуль, і звіт
+  // мовчки занижує відшкодування.
+  it('рахує замовлення без вартості окремо', () => {
+    const { unpricedOrders } = aggregateReimbursement(
       [
-        { class_id: 'c1', privileged: false, cost: 24, missing_prices: 2 },
-        { class_id: 'c2', privileged: false, cost: 30, missing_prices: 1 },
+        { class_id: 'c1', privileged: false, cost: 0, unpriced: true },
+        { class_id: 'c1', privileged: false, cost: 58, unpriced: false },
+        { class_id: 'c2', privileged: true, cost: 0, unpriced: true },
       ],
       nameOf,
     )
-    expect(missingPrices).toBe(3)
+    expect(unpricedOrders).toBe(2)
   })
 
   it('сортує класи за назвою', () => {
     const { rows } = aggregateReimbursement(
       [
-        { class_id: 'c2', privileged: false, cost: 1, missing_prices: 0 },
-        { class_id: 'c1', privileged: false, cost: 1, missing_prices: 0 },
+        { class_id: 'c2', privileged: false, cost: 1, unpriced: false },
+        { class_id: 'c1', privileged: false, cost: 1, unpriced: false },
       ],
       nameOf,
     )
     expect(rows.map((r) => r.class_name)).toEqual(['7-А', '7-Б'])
   })
 
+  it('ставить 2-А перед 10-А', () => {
+    const names: Record<string, string> = { a: '10-А', b: '2-А', c: '1-А' }
+    const { rows } = aggregateReimbursement(
+      ['a', 'b', 'c'].map((id) => ({ class_id: id, privileged: false, cost: 1, unpriced: false })),
+      (id) => names[id],
+    )
+    expect(rows.map((r) => r.class_name)).toEqual(['1-А', '2-А', '10-А'])
+  })
+
   it('підсумок збігається із сумою рядків', () => {
     const { rows } = aggregateReimbursement(
       [
-        { class_id: 'c1', privileged: true, cost: 60, missing_prices: 0 },
-        { class_id: 'c2', privileged: false, cost: 40, missing_prices: 0 },
+        { class_id: 'c1', privileged: true, cost: 60, unpriced: false },
+        { class_id: 'c2', privileged: false, cost: 40, unpriced: false },
       ],
       nameOf,
     )

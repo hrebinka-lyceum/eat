@@ -1,11 +1,14 @@
 import { supabase } from '@/lib/supabase'
 import { unwrap, unwrapMaybe } from './helpers'
+import { compareClassNames } from '@/lib/grades'
 import type { Class, TablesInsert, TablesUpdate } from '@/types/database'
 
 export async function listClasses(academicYear?: string): Promise<Class[]> {
   let query = supabase.from('classes').select('*').order('name')
   if (academicYear) query = query.eq('academic_year', academicYear)
-  return unwrap(await query, 'Не вдалося отримати список класів.')
+  const classes = unwrap(await query, 'Не вдалося отримати список класів.')
+  // Сервер сортує назви як рядки («10-А» перед «2-А»), тож упорядковуємо тут.
+  return classes.sort((a, b) => compareClassNames(a.name, b.name))
 }
 
 export async function getClass(classId: string): Promise<Class | null> {

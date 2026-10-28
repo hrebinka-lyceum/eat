@@ -2,12 +2,13 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { CircleCheck, Info, KeyRound, Plus, Search, Star } from 'lucide-react'
 import { listStudentsOfClass } from '@/api/students'
+import { listPrivilegeCategories } from '@/api/privilegeCategories'
 import { listOrdersPlainOfClass } from '@/api/orders'
 import { useMyClass } from '@/hooks/useMyClass'
 import { usePublishedDays } from '@/hooks/usePublishedDays'
 import { qk } from '@/lib/queryKeys'
 import { csvFilename } from '@/lib/csv'
-import { formatDate, fullName } from '@/lib/format'
+import { formatDate, fullName, GENDER_LABELS, GENDER_SHORT } from '@/lib/format'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
@@ -50,6 +51,19 @@ export default function ClassRosterPage() {
   const credentials = useCredentialsFlow()
 
   const activeDay = day ?? days[0]?.menu_date ?? null
+
+  const categoriesQuery = useQuery({
+    queryKey: qk.privilegeCategories(),
+    queryFn: listPrivilegeCategories,
+  })
+  const categoryName = useMemo(
+    () => new Map((categoriesQuery.data ?? []).map((category) => [category.id, category.name])),
+    [categoriesQuery.data],
+  )
+  const privilegeLabel = (student: Student) =>
+    student.is_privileged
+      ? (student.privilege_category_id && categoryName.get(student.privilege_category_id)) || 'Пільга'
+      : ''
 
   const studentsQuery = useQuery({
     queryKey: qk.students(myClass?.id ?? '', showInactive),
@@ -132,8 +146,9 @@ export default function ClassRosterPage() {
               columns={[
                 { header: 'Прізвище', value: (s) => s.last_name },
                 { header: 'Ім’я', value: (s) => s.first_name },
+                { header: 'Стать', value: (s) => (s.gender ? GENDER_LABELS[s.gender] : '') },
                 { header: 'Пільга', value: (s) => s.is_privileged },
-                { header: 'Підстава пільги', value: (s) => s.privilege_note ?? '' },
+                { header: 'Пільгова категорія', value: privilegeLabel },
                 { header: 'Має логін', value: (s) => Boolean(s.profile_id) },
                 { header: 'Харчується з', value: (s) => s.enrolled_from },
                 { header: 'У реєстрі', value: (s) => s.is_active },
@@ -238,6 +253,7 @@ export default function ClassRosterPage() {
                   />
                 </TableHead>
                 <TableHead>Учень</TableHead>
+                <TableHead className="w-16">Стать</TableHead>
                 <TableHead>Пільга</TableHead>
                 <TableHead>Логін</TableHead>
                 <TableHead>
@@ -274,10 +290,17 @@ export default function ClassRosterPage() {
                     )}
                   </TableCell>
                   <TableCell>
+                    {student.gender ? (
+                      <span title={GENDER_LABELS[student.gender]}>{GENDER_SHORT[student.gender]}</span>
+                    ) : (
+                      <span className="text-muted-foreground" title="Стать не вказано">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
                     {student.is_privileged ? (
                       <Badge variant="secondary">
                         <Star className="size-3" aria-hidden />
-                        Пільга
+                        {privilegeLabel(student)}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground">—</span>

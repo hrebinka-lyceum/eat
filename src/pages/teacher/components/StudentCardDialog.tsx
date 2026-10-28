@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { KeyRound, UserMinus, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
-import { getPrivilegeLog, restoreStudent, retireStudent, setPrivilege } from '@/api/students'
-import { qk } from '@/lib/queryKeys'
+import { restoreStudent, retireStudent } from '@/api/students'
 import { humanError } from '@/lib/errors'
 import { formatDate, fullName, toIsoDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -15,20 +14,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { ErrorState } from '@/components/common/states'
 import { CredentialsDialog } from '@/components/common/CredentialsDialog'
 import { useCredentialsFlow } from '@/hooks/useCredentialsFlow'
+import { StudentProfileForm } from '@/components/students/StudentProfileForm'
 import type { Student } from '@/types/database'
 
 /**
- * Картка учня: пільговий статус, примітка й останній запис журналу.
+ * Картка учня: ім'я, стать, пільгова категорія, логін і вибуття.
  *
- * Журнал тут не для звітності, а щоб після переведення учня з іншого класу
- * було видно, хто і коли поставив пільгу — документи збирає то керівник,
+ * Останній запис журналу пільг — щоб після переведення учня з іншого класу
+ * було видно, хто і коли поставив пільгу: документи збирає то керівник,
  * то адміністрація.
  */
 export function StudentCardDialog({
@@ -39,40 +36,20 @@ export function StudentCardDialog({
   onOpenChange: (open: boolean) => void
 }) {
   const queryClient = useQueryClient()
-  const [privileged, setPrivileged] = useState(false)
-  const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmRetire, setConfirmRetire] = useState(false)
   const credentials = useCredentialsFlow()
 
   useEffect(() => {
     if (!student) return
-    setPrivileged(student.is_privileged)
-    setNote(student.privilege_note ?? '')
     setError(null)
     setConfirmRetire(false)
   }, [student])
-
-  const logQuery = useQuery({
-    queryKey: qk.privilegeLog(student?.id ?? ''),
-    queryFn: () => getPrivilegeLog(student!.id, 3),
-    enabled: Boolean(student),
-  })
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['students'] })
     await queryClient.invalidateQueries({ queryKey: ['privilege-log'] })
   }
-
-  const savePrivilege = useMutation({
-    mutationFn: () => setPrivilege(student!.id, privileged, note.trim() || null),
-    onSuccess: async () => {
-      await invalidate()
-      toast.success('Збережено')
-      onOpenChange(false)
-    },
-    onError: (err) => setError(humanError(err, 'Не вдалося зберегти пільговий статус.')),
-  })
 
   const retire = useMutation({
     mutationFn: () => retireStudent(student!.id, toIsoDate()),
@@ -96,8 +73,6 @@ export function StudentCardDialog({
 
   if (!student) return null
 
-  const lastLog = logQuery.data?.[0] ?? null
-
   // Вікно з паролем показуємо поверх картки: закривати картку не треба,
   // а пароль не має загубитися через випадкове закриття.
   if (credentials.credentials) {
@@ -112,7 +87,7 @@ export function StudentCardDialog({
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[min(34rem,calc(100%-2rem))]">
         <DialogHeader>
           <DialogTitle>{fullName(student.last_name, student.first_name)}</DialogTitle>
           <DialogDescription>
@@ -147,35 +122,12 @@ export function StudentCardDialog({
             )}
           </div>
 
-          <div className="space-y-3 rounded-lg border p-3">
-            <div className="flex items-center justify-between gap-3">
-              <Label htmlFor="privileged">Пільгове харчування</Label>
-              <Switch id="privileged" checked={privileged} onCheckedChange={setPrivileged} />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="privilege-note" className="text-xs font-normal text-muted-foreground">
-                Підстава (документ, рішення)
-              </Label>
-              <Textarea
-                id="privilege-note"
-                rows={2}
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Наприклад: довідка про статус ВПО від 02.09.2026"
-              />
-            </div>
-
-            {lastLog ? (
-              <p className="text-xs text-muted-foreground">
-                Останній запис: {lastLog.new_value ? 'пільгу поставлено' : 'пільгу знято'}{' '}
-                {formatDate(lastLog.changed_at)} —{' '}
-                {lastLog.profiles?.full_name ?? 'адміністрація школи'}
-              </p>
-            ) : (
-              <p className="text-xs text-muted-foreground">Пільговий статус ще не змінювали.</p>
-            )}
-          </div>
+          <StudentProfileForm
+            student={student}
+            idPrefix="student"
+            unknownAuthor="адміністрація школи"
+            onSaved={() => onOpenChange(false)}
+          />
 
           {student.is_active ? (
             <div className="rounded-lg border border-dashed p-3">
@@ -226,9 +178,6 @@ export function StudentCardDialog({
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Закрити
-          </Button>
-          <Button disabled={savePrivilege.isPending} onClick={() => savePrivilege.mutate()}>
-            {savePrivilege.isPending ? 'Зберігаємо…' : 'Зберегти'}
           </Button>
         </DialogFooter>
       </DialogContent>

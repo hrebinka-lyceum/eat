@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Check, Plus, Search } from 'lucide-react'
-import { CATEGORY_LABELS, CATEGORY_ORDER, formatMoney } from '@/lib/format'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -24,20 +24,19 @@ export function DishPicker({
 }) {
   const [search, setSearch] = useState('')
 
-  const grouped = useMemo(() => {
+  // Категорій більше немає — просто список компонентів за абеткою.
+  const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
-    const matching = dishes.filter((dish) => !term || dish.name.toLowerCase().includes(term))
-    return CATEGORY_ORDER.map((category) => ({
-      category,
-      items: matching.filter((dish) => dish.category === category),
-    })).filter((group) => group.items.length > 0)
+    return dishes
+      .filter((dish) => !term || dish.name.toLowerCase().includes(term))
+      .sort((a, b) => a.name.localeCompare(b.name, 'uk'))
   }, [dishes, search])
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Додати до сніданку</CardTitle>
-        <CardDescription>Ціна підставиться з довідника.</CardDescription>
+        <CardTitle className="text-base">Додати компонент</CardTitle>
+        <CardDescription>Склад блюда — довільний: каша, котлета, чай, фрукти.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative">
@@ -47,66 +46,53 @@ export function DishPicker({
           />
           <Input
             className="pl-8"
-            placeholder="Пошук страви"
-            aria-label="Пошук страви"
+            placeholder="Пошук компонента"
+            aria-label="Пошук компонента"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
-        {grouped.length === 0 ? (
+        {visible.length === 0 ? (
           <EmptyState
-            title="Немає активних страв"
-            hint="Додайте страви в довіднику — далі вони з’являться тут."
+            title="Немає активних компонентів"
+            hint="Додайте їх у довіднику — далі вони з’являться тут."
           />
         ) : null}
 
-        <div className="max-h-[28rem] space-y-4 overflow-y-auto pr-1">
-          {grouped.map((group) => (
-            <div key={group.category}>
-              <p className="pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                {CATEGORY_LABELS[group.category]}
-              </p>
-              <div className="space-y-1">
-                {group.items.map((dish) => {
-                  const used = usedDishIds.has(dish.id)
-                  return (
-                    <div
-                      key={dish.id}
-                      className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-sm">{dish.name}</p>
-                        <p className="text-xs text-muted-foreground tabular-nums">
-                          {formatMoney(dish.price)}
-                        </p>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant={used ? 'ghost' : 'outline'}
-                        disabled={used || disabled}
-                        aria-label={`Додати ${dish.name} до сніданку`}
-                        onClick={() => onAdd(dish)}
-                      >
-                        {used ? (
-                          <>
-                            <Check className="size-4" aria-hidden />
-                            У меню
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="size-4" aria-hidden />
-                            Додати
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )
-                })}
+        <div className="max-h-[28rem] space-y-1 overflow-y-auto pr-1">
+          {visible.map((dish) => {
+            const used = usedDishIds.has(dish.id)
+            return (
+              <div
+                key={dish.id}
+                className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
+              >
+                <p className="min-w-0 truncate text-sm">{dish.name}</p>
+                <Button
+                  size="sm"
+                  variant={used ? 'ghost' : 'outline'}
+                  disabled={used || disabled}
+                  aria-label={`Додати ${dish.name} до блюда`}
+                  onClick={() => onAdd(dish)}
+                >
+                  {used ? (
+                    <>
+                      <Check className="size-4" aria-hidden />
+                      У блюді
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="size-4" aria-hidden />
+                      Додати
+                    </>
+                  )}
+                </Button>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
+
       </CardContent>
     </Card>
   )

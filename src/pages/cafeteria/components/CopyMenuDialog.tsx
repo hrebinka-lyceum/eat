@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { copyMenu } from '@/api/menu'
+import { copyMenu, listMenuItems, setDayPrice } from '@/api/menu'
 import { humanError } from '@/lib/errors'
 import { prevWorkday } from '@/lib/dates'
 import { formatDateWithWeekday } from '@/lib/format'
@@ -42,12 +42,28 @@ export function CopyMenuDialog({
   }, [open, targetDate])
 
   const mutation = useMutation({
-    mutationFn: () => copyMenu(source, targetDate),
+    mutationFn: async () => {
+      // copy_menu бере ціни з довідника, а в компонентів їх немає: вартість
+      // належить блюду, а не складовій. Тому переносимо суму дня-джерела
+      // самі — інакше скопійований день лишався б без ціни.
+      const sourceItems = await listMenuItems(source)
+      const sourceTotal = sourceItems.some((item) => item.price !== null)
+        ? sourceItems.reduce((sum, item) => sum + (item.price ?? 0), 0)
+        : null
+
+      const count = await copyMenu(source, targetDate)
+      await setDayPrice(targetDate, sourceTotal)
+      return count
+    },
     onSuccess: async (count) => {
       await queryClient.invalidateQueries({ queryKey: ['menu-items'] })
       await queryClient.invalidateQueries({ queryKey: ['menu-day'] })
       await queryClient.invalidateQueries({ queryKey: ['menu-next-empty'] })
-      toast.success(count === 0 ? 'У дні-джерелі немає активних страв' : `Скопійовано позицій: ${count}`)
+      toast.success(
+        count === 0
+          ? 'У дні-джерелі немає активних компонентів'
+          : `Скопійовано компонентів: ${count}`,
+      )
       onOpenChange(false)
     },
     onError: (err) => setError(humanError(err)),
@@ -57,10 +73,10 @@ export function CopyMenuDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Скопіювати меню</DialogTitle>
+          <DialogTitle>Скопіювати блюдо</DialogTitle>
           <DialogDescription>
-            Склад меню перенесеться на {formatDateWithWeekday(targetDate)}. Ціни візьмуться
-            поточні з довідника, а не ті, що були в дні-джерелі.
+            Склад блюда перенесеться на {formatDateWithWeekday(targetDate)} разом
+            із вартістю дня-джерела.
           </DialogDescription>
         </DialogHeader>
 
@@ -78,7 +94,7 @@ export function CopyMenuDialog({
           {targetHasItems ? (
             <Alert>
               <AlertDescription>
-                У цьому дні вже є страви — вони будуть замінені складом дня-джерела.
+                У цьому дні вже є компоненти — вони будуть замінені складом дня-джерела.
               </AlertDescription>
             </Alert>
           ) : null}

@@ -8,8 +8,6 @@ import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
 import { shiftIso } from '@/lib/dates'
 import {
-  CATEGORY_LABELS,
-  CATEGORY_ORDER,
   MENU_STATUS_LABELS,
   formatCutoff,
   formatDateWithWeekday,
@@ -74,18 +72,16 @@ export function StudentOrdersTab({ student }: { student: Student }) {
   const alreadyOrdered = orders.some((order) => order.menu_date === activeDate)
   const willBeLate = openQuery.data === false
 
-  const groups = useMemo(() => {
-    const items = itemsQuery.data ?? []
-    return CATEGORY_ORDER.map((category) => ({
-      category,
-      items: items
-        .filter((item) => item.dishes.category === category)
-        .sort((a, b) => a.dishes.name.localeCompare(b.dishes.name, 'uk')),
-    })).filter((group) => group.items.length > 0)
-  }, [itemsQuery.data])
+  const names = useMemo(
+    () =>
+      (itemsQuery.data ?? [])
+        .map((item) => item.dishes.name)
+        .sort((a, b) => a.localeCompare(b, 'uk')),
+    [itemsQuery.data],
+  )
 
   const submit = useMutation({
-    // Замовляється весь склад дня — сніданок неподільний.
+    // Замовляється весь склад дня — блюдо неподільне.
     mutationFn: () =>
       placeOrder(student.id, activeDate!, (itemsQuery.data ?? []).map((item) => item.id)),
     onSuccess: async () => {
@@ -178,28 +174,21 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                   </Alert>
                 ) : null}
 
-                {/* Сніданок один на всіх: обирати нічого, лише подивитися склад. */}
+                {/* Блюдо одне на всіх: обирати нічого, лише подивитися склад. */}
                 <div className="space-y-3 rounded-lg border p-3">
                   {itemsQuery.isPending ? <LoadingState /> : null}
-                  {groups.length === 0 && !itemsQuery.isPending ? (
+                  {names.length === 0 && !itemsQuery.isPending ? (
                     <p className="text-sm text-muted-foreground">
-                      Сніданок на цей день ще не складено.
+                      Блюдо на цей день ще не складено.
                     </p>
                   ) : (
                     <>
-                      <p className="text-sm font-medium">Сніданок</p>
-                      {groups.map((group) => (
-                        <div key={group.category}>
-                          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                            {CATEGORY_LABELS[group.category]}
-                          </p>
-                          <ul className="mt-1 space-y-0.5 text-sm">
-                            {group.items.map((item) => (
-                              <li key={item.id}>{item.dishes.name}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ))}
+                      <p className="text-sm font-medium">Блюдо дня</p>
+                      <ul className="space-y-0.5 text-sm">
+                        {names.map((name) => (
+                          <li key={name}>{name}</li>
+                        ))}
+                      </ul>
                     </>
                   )}
                 </div>
@@ -208,7 +197,7 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                   disabled={submit.isPending || (itemsQuery.data ?? []).length === 0}
                   onClick={() => submit.mutate()}
                 >
-                  {submit.isPending ? 'Замовляємо…' : 'Замовити сніданок'}
+                  {submit.isPending ? 'Замовляємо…' : 'Замовити блюдо'}
                 </Button>
               </>
             )}

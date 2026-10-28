@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import { unwrap } from './helpers'
-import type { PrivilegeLogEntry, Student } from '@/types/database'
+import { fetchAllPages, unwrap } from './helpers'
+import type { Gender, PrivilegeLogEntry, Student } from '@/types/database'
 
 // ---------------------------------------------------------------------------
 //  Запити для звітів.
@@ -30,16 +30,19 @@ export async function timesheetOrders(
   from: string,
   to: string,
 ): Promise<TimesheetOrder[]> {
-  return unwrap(
-    await supabase
-      .from('orders')
-      .select('menu_date, student_id, privileged_at_order, after_cutoff, students(id, last_name, first_name)')
-      .eq('class_id', classId)
-      .gte('menu_date', from)
-      .lte('menu_date', to)
-      .order('menu_date'),
+  return (await fetchAllPages(
+    (start, end) =>
+      supabase
+        .from('orders')
+        .select('menu_date, student_id, privileged_at_order, after_cutoff, students(id, last_name, first_name)')
+        .eq('class_id', classId)
+        .gte('menu_date', from)
+        .lte('menu_date', to)
+        .order('menu_date')
+        .order('id')
+        .range(start, end),
     'Не вдалося отримати замовлення для табеля.',
-  ) as unknown as TimesheetOrder[]
+  )) as unknown as TimesheetOrder[]
 }
 
 export interface LateOrderRow {
@@ -70,6 +73,7 @@ export async function lateOrders(from: string, to: string): Promise<LateOrderRow
 
 export interface PrivilegedStudentRow extends Student {
   classes: { id: string; name: string } | null
+  privilege_categories: { id: string; name: string } | null
 }
 
 /** Усі, хто зараз має пільговий статус. */
@@ -77,7 +81,7 @@ export async function privilegedStudents(): Promise<PrivilegedStudentRow[]> {
   return unwrap(
     await supabase
       .from('students')
-      .select('*, classes(id, name)')
+      .select('*, classes(id, name), privilege_categories(id, name)')
       .eq('is_privileged', true)
       .eq('is_active', true)
       .order('last_name'),
@@ -103,4 +107,60 @@ export async function privilegeLogFor(studentIds: string[]): Promise<PrivilegeLo
       .order('changed_at', { ascending: false }),
     'Не вдалося прочитати журнал пільг.',
   ) as unknown as PrivilegeLogRow[]
+}
+
+/** Замовлення для зведених звітів: хто, коли, у якому класі, скільки коштувало. */
+export interface MealOrderRow {
+  menu_date: string
+  student_id: string
+  class_id: string
+  privileged: boolean
+  cost: number
+  /** жоден компонент не мав ціни — день без вартості блюда */
+  unpriced: boolean
+  gender: Gender | null
+  category_id: string | null
+}
+
+/**
+ * Усі замовлення періоду разом зі статтю й пільговою категорією учня.
+ *
+ * Клас і пільга — зліпки з замовлення (orders.class_id, privileged_at_order),
+ * а стать і категорія — поточні з картки: історії цих полів немає.
+ * Читає сирі price_at_order — викликати лише там, де дозволена вартість.
+ */
+export async function mealOrders(from: string, to: string): Promise<MealOrderRow[]> {
+  const rows = (await fetchAllPages(
+    (start, end) =>
+      supabase
+        .from('orders')
+        .select(
+          'menu_date, student_id, class_id, privileged_at_order, ' +
+            'order_items(price_at_order), students(gender, privilege_category_id)',
+        )
+        .gte('menu_date', from)
+        .lte('menu_date', to)
+        .order('menu_date')
+        .order('id')
+        .range(start, end),
+    'Не вдалося отримати замовлення за період.',
+  )) as unknown as Array<{
+    menu_date: string
+    student_id: string
+    class_id: string
+    privileged_at_order: boolean
+    order_items: Array<{ price_at_order: number | null }>
+    students: { gender: Gender | null; privilege_category_id: string | null } | null
+  }>
+
+  return rows.map((row) => ({
+    menu_date: row.menu_date,
+    student_id: row.student_id,
+    class_id: row.class_id,
+    privileged: row.privileged_at_order,
+    cost: row.order_items.reduce((sum, item) => sum + (item.price_at_order ?? 0), 0),
+    unpriced: row.order_items.every((item) => item.price_at_order === null),
+    gender: row.students?.gender ?? null,
+    category_id: row.students?.privilege_category_id ?? null,
+  }))
 }

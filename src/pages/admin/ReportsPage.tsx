@@ -3,8 +3,10 @@ import {
   CalendarCheck,
   ChartPie,
   Clock,
+  FileSignature,
   Receipt,
   Star,
+  UsersRound,
   type LucideIcon,
 } from 'lucide-react'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -24,6 +26,14 @@ interface ReportLink {
  * інакше розділ швидко перетворюється на звалище таблиць.
  */
 const REPORTS: ReportLink[] = [
+  {
+    to: '/reports/organization',
+    title: 'Звіт про організацію харчування',
+    description:
+      'Документ на затвердження директором: дні, діти, вартість, групи класів, відвідування, пільгові категорії. DOCX і PDF.',
+    audience: 'Директор, управління освіти',
+    icon: FileSignature,
+  },
   {
     to: '/reports/reimbursement',
     title: 'Звіт про відшкодування',
@@ -49,9 +59,16 @@ const REPORTS: ReportLink[] = [
   {
     to: '/reports/privileged',
     title: 'Пільгові учні',
-    description: 'Хто має пільгу, на якій підставі, хто і коли поставив статус.',
+    description: 'Хто має пільгу, за якою категорією, хто і коли поставив статус.',
     audience: 'Перевірки',
     icon: Star,
+  },
+  {
+    to: '/reports/gender',
+    title: 'Харчування за статтю',
+    description: 'Скільки хлопців і дівчат харчувалося — по школі, ланках (1–4, 5–9, 10–11) і класах.',
+    audience: 'Управління освіти, статистика',
+    icon: UsersRound,
   },
   {
     to: '/reports/late',

@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRight, OctagonAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { promoteAcademicYear } from '@/api/admin'
+import { listClasses } from '@/api/classes'
 import { getSettings } from '@/api/settings'
+import { gradeRange, unparsableClassNames } from '@/lib/grades'
 import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -28,7 +30,15 @@ export default function PromoteYearPage() {
   const settingsQuery = useQuery({ queryKey: qk.settings(), queryFn: getSettings })
   const currentYear = settingsQuery.data?.current_year ?? ''
 
+  const classesQuery = useQuery({
+    queryKey: qk.classes(currentYear || undefined),
+    queryFn: () => listClasses(currentYear),
+    enabled: Boolean(currentYear),
+  })
+
   const [newYear, setNewYear] = useState('')
+  const [minGrade, setMinGrade] = useState('')
+  const [maxGrade, setMaxGrade] = useState('')
   const [startDate, setStartDate] = useState('')
   const [confirmYear, setConfirmYear] = useState('')
   const [report, setReport] = useState<PromoteResult | null>(null)
@@ -37,8 +47,33 @@ export default function PromoteYearPage() {
   const suggested = useMemo(() => nextYearLabel(currentYear), [currentYear])
   const targetYear = (newYear || suggested).trim()
 
+  const classNames = useMemo(
+    () => (classesQuery.data ?? []).map((item) => item.name),
+    [classesQuery.data],
+  )
+
+  // Межі беремо з наявних класів: школа може бути 5–11, 1–11 чи будь-якою
+  // іншою. Зашите число тут мовчки створило б дублікати паралелі.
+  const detected = useMemo(() => gradeRange(classNames), [classNames])
+  const unparsable = useMemo(() => unparsableClassNames(classNames), [classNames])
+
+  const effectiveMin = minGrade === '' ? detected?.min : Number(minGrade)
+  const effectiveMax = maxGrade === '' ? detected?.max : Number(maxGrade)
+  const gradesValid =
+    effectiveMin !== undefined &&
+    effectiveMax !== undefined &&
+    Number.isInteger(effectiveMin) &&
+    Number.isInteger(effectiveMax) &&
+    effectiveMin >= 1 &&
+    effectiveMax > effectiveMin
+
   const promote = useMutation({
-    mutationFn: () => promoteAcademicYear(targetYear, startDate || undefined),
+    mutationFn: () =>
+      promoteAcademicYear(targetYear, {
+        startDate: startDate || undefined,
+        minGrade: effectiveMin,
+        maxGrade: effectiveMax,
+      }),
     onSuccess: async (data) => {
       await queryClient.invalidateQueries()
       setReport(data)
@@ -68,9 +103,22 @@ export default function PromoteYearPage() {
         <AlertTitle>Що станеться після натискання</AlertTitle>
         <AlertDescription>
           <ul className="mt-1 list-inside list-disc space-y-1">
-            <li>Кожен клас підніметься на паралель вище: 5-А стане 6-А, 6-А — 7-А і так далі.</li>
-            <li>Одинадцяті класи випустяться: їхні учні вийдуть з реєстру, а акаунти буде вимкнено.</li>
-            <li>З’являться нові п’яті класи — порожні, без керівників.</li>
+            <li>
+              Кожен клас підніметься на паралель вище
+              {effectiveMin !== undefined
+                ? `: ${effectiveMin}-А стане ${effectiveMin + 1}-А і так далі`
+                : ''}
+              .
+            </li>
+            <li>
+              {effectiveMax !== undefined ? `Класи ${effectiveMax} паралелі` : 'Випускні класи'}{' '}
+              випустяться: їхні учні вийдуть з реєстру, а акаунти буде вимкнено.
+            </li>
+            <li>
+              З’являться нові класи{' '}
+              {effectiveMin !== undefined ? `${effectiveMin} паралелі` : 'наймолодшої паралелі'} —
+              порожні, без керівників.
+            </li>
             <li>Поточний рік у налаштуваннях зміниться на новий.</li>
           </ul>
           <p className="mt-2">
@@ -100,6 +148,38 @@ export default function PromoteYearPage() {
             />
           </div>
           <div className="space-y-2">
+            <Label htmlFor="min-grade">Наймолодша паралель</Label>
+            <Input
+              id="min-grade"
+              type="number"
+              min={1}
+              max={11}
+              className="max-w-24"
+              placeholder={detected ? String(detected.min) : ''}
+              value={minGrade}
+              onChange={(e) => setMinGrade(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Її щороку добирають новими класами.
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="max-grade">Випускна паралель</Label>
+            <Input
+              id="max-grade"
+              type="number"
+              min={2}
+              max={12}
+              className="max-w-24"
+              placeholder={detected ? String(detected.max) : ''}
+              value={maxGrade}
+              onChange={(e) => setMaxGrade(e.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">Її учні випускаються.</p>
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="start-date">Дата початку</Label>
             <Input
               id="start-date"
@@ -112,6 +192,25 @@ export default function PromoteYearPage() {
           </div>
         </CardContent>
       </Card>
+
+      {detected ? (
+        <p className="text-sm text-muted-foreground">
+          У поточному році є паралелі з {detected.min} по {detected.max} — межі
+          підставлені звідси. Змінюйте їх, лише якщо знаєте, що робите:
+          наймолодша паралель визначає, які класи буде створено заново.
+        </p>
+      ) : null}
+
+      {unparsable.length > 0 ? (
+        <Alert>
+          <OctagonAlert className="size-4" aria-hidden />
+          <AlertTitle>Не всі назви класів розбираються на паралель</AlertTitle>
+          <AlertDescription>
+            {unparsable.join(', ')} — переведення зупиниться на них. Приведіть назви
+            до вигляду «7-А» у розділі «Класи».
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -141,6 +240,8 @@ export default function PromoteYearPage() {
               !targetYear ||
               confirmYear.trim() !== targetYear ||
               targetYear === currentYear ||
+              !gradesValid ||
+              unparsable.length > 0 ||
               promote.isPending
             }
             onClick={() => {
@@ -155,6 +256,12 @@ export default function PromoteYearPage() {
           {targetYear === currentYear ? (
             <p className="text-sm text-muted-foreground">
               Новий рік збігається з поточним — вкажіть інший.
+            </p>
+          ) : null}
+
+          {!gradesValid ? (
+            <p className="text-sm text-muted-foreground">
+              Перевірте паралелі: випускна має бути більшою за наймолодшу.
             </p>
           ) : null}
         </CardContent>

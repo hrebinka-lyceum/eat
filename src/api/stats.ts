@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
-import { unwrap } from './helpers'
+import { fetchAllPages, unwrap } from './helpers'
+import { compareClassNames } from '@/lib/grades'
 import type { Views } from '@/types/database'
 
 /**
@@ -27,7 +28,7 @@ export async function classCoverage(
   from: string,
   to: string = from,
 ): Promise<Views<'v_class_coverage'>[]> {
-  return unwrap(
+  const rows = unwrap(
     await supabase
       .from('v_class_coverage')
       .select('*')
@@ -36,6 +37,10 @@ export async function classCoverage(
       .order('menu_date')
       .order('class_name'),
     'Не вдалося отримати охоплення по класах.',
+  )
+  // Сервер сортує назви як рядки («10-А» перед «2-А»).
+  return rows.sort(
+    (a, b) => a.menu_date.localeCompare(b.menu_date) || compareClassNames(a.class_name, b.class_name),
   )
 }
 
@@ -70,11 +75,14 @@ export interface OrderCostRow {
   privileged: boolean
   cost: number
   /**
-   * Скільки позицій замовлення прийшло без ціни. Такі страви додають до
-   * суми нуль — і якщо про це не сказати, звіт про відшкодування тихо
-   * занизить цифру.
+   * Замовлення без вартості: жоден компонент не мав ціни, бо вартість блюда
+   * на той день ще не була вказана. Воно додає до суми нуль — і якщо про це
+   * не сказати, звіт про відшкодування тихо занизить цифру.
+   *
+   * Рахувати окремі позиції з null не можна: вартість блюда лежить на одному
+   * компоненті, решта мають null завжди, і попередження горіло б щомісяця.
    */
-  missing_prices: number
+  unpriced: boolean
 }
 
 /**
@@ -89,15 +97,18 @@ export interface OrderCostRow {
  * Викликати лише там, де вартість дозволена: canSeeCost().
  */
 export async function costRows(from: string, to: string): Promise<OrderCostRow[]> {
-  const rows = unwrap(
-    await supabase
-      .from('orders')
-      .select('menu_date, class_id, privileged_at_order, order_items(price_at_order)')
-      .gte('menu_date', from)
-      .lte('menu_date', to)
-      .order('menu_date'),
+  const rows = (await fetchAllPages(
+    (start, end) =>
+      supabase
+        .from('orders')
+        .select('menu_date, class_id, privileged_at_order, order_items(price_at_order)')
+        .gte('menu_date', from)
+        .lte('menu_date', to)
+        .order('menu_date')
+        .order('id')
+        .range(start, end),
     'Не вдалося порахувати вартість.',
-  ) as unknown as Array<{
+  )) as unknown as Array<{
     menu_date: string
     class_id: string
     privileged_at_order: boolean
@@ -108,9 +119,9 @@ export async function costRows(from: string, to: string): Promise<OrderCostRow[]
     menu_date: row.menu_date,
     class_id: row.class_id,
     privileged: row.privileged_at_order,
-    // null у ціні — страва без ціни в довіднику, а не нуль-вартість.
-    // Для суми вона просто нічого не додає.
+    // null у ціні — компонент, що не несе вартості блюда, а не нуль-вартість.
+    // Для суми він просто нічого не додає.
     cost: row.order_items.reduce((sum, item) => sum + (item.price_at_order ?? 0), 0),
-    missing_prices: row.order_items.filter((item) => item.price_at_order === null).length,
+    unpriced: row.order_items.every((item) => item.price_at_order === null),
   }))
 }

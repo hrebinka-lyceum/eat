@@ -14,3 +14,6 @@ accounts-edge-function.ts
 # Локальний контекст для асистента
 .context
 CLAUDE.md
+
+# Міграції бази: їх виконують у Supabase, у репозиторії фронтенду їм не місце
+migration-*.sql

@@ -1,8 +1,9 @@
 import { supabase } from '@/lib/supabase'
 import { likeEscape, unwrap, unwrapMaybe } from './helpers'
-import { humanError } from '@/lib/errors'
+import { humanError, humanErrorWith } from '@/lib/errors'
 import type {
   ClassEnrollment,
+  Gender,
   PrivilegeLogEntry,
   Student,
   TablesInsert,
@@ -82,13 +83,121 @@ export async function updateStudent(
   )
 }
 
-/** Кожна зміна пільги лишає слід у privilege_log — це робить тригер. */
-export async function setPrivilege(
+/**
+ * Пільга учня: «без пільги», категорія зі списку або пільга без категорії
+ * (так позначені всі, кому її ставили до появи категорій).
+ */
+export type PrivilegeChoice =
+  | { kind: 'none' }
+  | { kind: 'category'; categoryId: string }
+  | { kind: 'uncategorized' }
+
+export function privilegeChoiceOf(student: Pick<Student, 'is_privileged' | 'privilege_category_id'>): PrivilegeChoice {
+  if (!student.is_privileged) return { kind: 'none' }
+  return student.privilege_category_id
+    ? { kind: 'category', categoryId: student.privilege_category_id }
+    : { kind: 'uncategorized' }
+}
+
+/** Поля пільги для запису. Категорія без is_privileged заборонена в базі. */
+export function privilegeFields(choice: PrivilegeChoice) {
+  switch (choice.kind) {
+    case 'none':
+      return { is_privileged: false, privilege_category_id: null }
+    case 'category':
+      return { is_privileged: true, privilege_category_id: choice.categoryId }
+    case 'uncategorized':
+      return { is_privileged: true, privilege_category_id: null }
+  }
+}
+
+export interface StudentProfilePatch {
+  lastName: string
+  firstName: string
+  gender: Gender | null
+  privilege: PrivilegeChoice
+}
+
+/**
+ * Профіль учня одним записом. Кожна зміна is_privileged лишає слід у
+ * privilege_log — це робить тригер; зміну категорії журнал не бачить.
+ */
+export async function updateStudentProfile(
   studentId: string,
-  isPrivileged: boolean,
-  note: string | null,
+  patch: StudentProfilePatch,
 ): Promise<Student> {
-  return updateStudent(studentId, { is_privileged: isPrivileged, privilege_note: note })
+  return updateStudent(studentId, {
+    last_name: patch.lastName.trim(),
+    first_name: patch.firstName.trim(),
+    gender: patch.gender,
+    ...privilegeFields(patch.privilege),
+  })
+}
+
+/** Скільки замовлень в учня і за який період — те, що зникне при повному видаленні. */
+export interface StudentOrderSummary {
+  count: number
+  first: string | null
+  last: string | null
+}
+
+export async function studentOrderSummary(studentId: string): Promise<StudentOrderSummary> {
+  const fallback = 'Не вдалося перевірити замовлення учня.'
+  const [counted, first, last] = await Promise.all([
+    supabase.from('orders').select('id', { count: 'exact', head: true }).eq('student_id', studentId),
+    supabase.from('orders').select('menu_date').eq('student_id', studentId).order('menu_date').limit(1).maybeSingle(),
+    supabase
+      .from('orders')
+      .select('menu_date')
+      .eq('student_id', studentId)
+      .order('menu_date', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ])
+  if (counted.error) throw new Error(humanError(counted.error, fallback))
+  return {
+    count: counted.count ?? 0,
+    first: unwrapMaybe(first, fallback)?.menu_date ?? null,
+    last: unwrapMaybe(last, fallback)?.menu_date ?? null,
+  }
+}
+
+/**
+ * Видалення учня разом з його акаунтом.
+ *
+ * Прямий delete заборонений не випадково: orders.student_id стоїть
+ * ON DELETE CASCADE, і разом з учнем зникла б уся історія харчування.
+ * Без `force` сервер видаляє лише учня без замовлень. З `force` — будь-якого,
+ * але тільки для суперадміна, і запис про це лишається в журналі видалень.
+ */
+export async function deleteStudent(
+  studentId: string,
+  { force = false }: { force?: boolean } = {},
+): Promise<{ accountNote: string | null }> {
+  // p_force лише коли потрібен: так звичайне видалення працює й на сервері,
+  // де ще немає версії функції з цим параметром.
+  const { data, error } = await supabase.rpc('delete_student', {
+    p_student_id: studentId,
+    ...(force ? { p_force: true } : {}),
+  })
+  if (error) {
+    throw new Error(
+      humanErrorWith(
+        error,
+        {
+          '23503':
+            'Учень уже має замовлення, тому видалити його не можна — зникла б історія ' +
+            'харчування і звіти за минулі місяці. Позначте «Більше не харчується».',
+          '42501': 'Учня з історією замовлень може видалити лише суперадміністратор.',
+          PGRST202: force
+            ? 'Повне видалення учнів ще не налаштоване на сервері — потрібна міграція бази.'
+            : 'Видалення учнів ще не налаштоване на сервері. Зверніться до адміністратора системи.',
+        },
+        'Не вдалося видалити учня.',
+      ),
+    )
+  }
+  return { accountNote: data?.account_note ?? null }
 }
 
 /** Хто і коли востаннє змінював пільговий статус. */

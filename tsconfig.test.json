@@ -23,5 +23,7 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["tests"]
+  // Оголошення модулів без власних типів (pdfmake) — інакше тести, що
+  // імпортують код із ними, їх не бачать.
+  "include": ["tests", "src/types/*.d.ts"]
 }

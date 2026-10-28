@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { listOrdersPlainOfStudent } from '@/api/orders'
 import { useMyStudent } from '@/hooks/useMyStudent'
 import { qk } from '@/lib/queryKeys'
-import { CATEGORY_ORDER, formatDateWithWeekday } from '@/lib/format'
+import { formatDateWithWeekday } from '@/lib/format'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
 import { Badge } from '@/components/ui/badge'
 
@@ -43,9 +43,7 @@ export default function StudentHistoryPage() {
         const dishes = order.order_items
           .map((item) => item.menu_items?.dishes)
           .filter((dish): dish is NonNullable<typeof dish> => Boolean(dish))
-          .sort(
-            (a, b) => CATEGORY_ORDER.indexOf(a.category) - CATEGORY_ORDER.indexOf(b.category),
-          )
+          .sort((a, b) => a.name.localeCompare(b.name, 'uk'))
 
         return (
           <div key={order.id} className="rounded-xl border p-4">

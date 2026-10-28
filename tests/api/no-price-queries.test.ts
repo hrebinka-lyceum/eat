@@ -13,7 +13,7 @@ function chain() {
   const builder: Record<string, unknown> = {}
   const methods = [
     'select', 'eq', 'in', 'gte', 'lte', 'is', 'or', 'order', 'limit', 'insert',
-    'update', 'delete', 'maybeSingle', 'single',
+    'update', 'delete', 'maybeSingle', 'single', 'range',
   ]
   for (const name of methods) {
     builder[name] = vi.fn((...args: unknown[]) => {

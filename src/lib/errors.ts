@@ -84,7 +84,7 @@ export function isUniqueViolation(error: unknown): boolean {
  */
 export function humanErrorWith(
   error: unknown,
-  overrides: Partial<Record<'23503' | '23505' | '42501', string>>,
+  overrides: Partial<Record<'23503' | '23505' | '42501' | 'P0002' | 'PGRST202', string>>,
   fallback?: string,
 ): string {
   const code = (error as MaybeSupabaseError)?.code

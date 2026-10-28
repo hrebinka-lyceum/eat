@@ -18,6 +18,7 @@ export type MenuStatus = 'draft' | 'published' | 'closed'
 export type DishCategory = 'first' | 'second' | 'side' | 'drink' | 'bakery'
 
 export type PurgeScope = 'orders' | 'menus' | 'privilege_log' | 'graduated_students'
+export type Gender = 'male' | 'female'
 
 export interface Database {
   public: {
@@ -98,7 +99,12 @@ export interface Database {
           first_name: string
           profile_id: string | null
           is_privileged: boolean
+          /** Стара довільна підстава пільги; в інтерфейсі більше не показується. */
           privilege_note: string | null
+          /** null — без пільги або пільга, поставлена до появи категорій */
+          privilege_category_id: string | null
+          /** null — стать ще не вказано */
+          gender: Gender | null
           is_active: boolean
           enrolled_from: string
           left_at: string | null
@@ -112,6 +118,8 @@ export interface Database {
           profile_id?: string | null
           is_privileged?: boolean
           privilege_note?: string | null
+          privilege_category_id?: string | null
+          gender?: Gender | null
           is_active?: boolean
           enrolled_from?: string
           left_at?: string | null
@@ -123,9 +131,47 @@ export interface Database {
           profile_id?: string | null
           is_privileged?: boolean
           privilege_note?: string | null
+          privilege_category_id?: string | null
+          gender?: Gender | null
           is_active?: boolean
           enrolled_from?: string
           left_at?: string | null
+        }
+        Relationships: []
+      }
+      privilege_categories: {
+        Row: {
+          id: string
+          name: string
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          is_active?: boolean
+        }
+        Update: {
+          name?: string
+          is_active?: boolean
+        }
+        Relationships: []
+      }
+      /** Один рядок: хто затверджує звіти. Пише адміністрація. */
+      report_settings: {
+        Row: {
+          id: boolean
+          director_last_name: string
+          director_first_name: string
+        }
+        Insert: {
+          id?: boolean
+          director_last_name?: string
+          director_first_name?: string
+        }
+        Update: {
+          director_last_name?: string
+          director_first_name?: string
         }
         Relationships: []
       }
@@ -373,6 +419,19 @@ export interface Database {
         }
         Returns: PurgeResult
       }
+      /**
+       * Учня без замовлень — адміністрація; з замовленнями — лише суперадмін
+       * з p_force, і тоді зникає вся історія (запис лишається в purge_log).
+       */
+      delete_student: {
+        Args: { p_student_id: string; p_force?: boolean }
+        Returns: { ok?: boolean; account_note?: string }
+      }
+      /** Лише суперадмін, не власний акаунт. */
+      delete_user: {
+        Args: { p_user_id: string }
+        Returns: undefined
+      }
     }
     Enums: {
       user_role: UserRole
@@ -391,7 +450,7 @@ export interface PromoteResult {
   start_date: string
   /** скільки класів створено всього, разом із новими вхідними */
   classes_created: number
-  /** скільки з них — нові п'яті, порожні й без керівника */
+  /** скільки з них — нові класи наймолодшої паралелі, порожні й без керівника */
   entry_classes: number
   students_moved: number
   students_graduated: number
@@ -405,6 +464,8 @@ export interface PurgeResult {
   graduated_students?: number
   /** з'являється, якщо акаунти випущених учнів прибрати не вдалося */
   auth_users_note?: string
+  /** повне видалення одного учня суперадміном: «Прізвище Ім'я (клас)» */
+  student?: string
 }
 
 export interface PurgePreview {
@@ -435,3 +496,5 @@ export type Settings = Tables<'settings'>
 export type PrivilegeLogEntry = Tables<'privilege_log'>
 export type PurgeLogEntry = Tables<'purge_log'>
 export type ClassEnrollment = Tables<'class_enrollments'>
+export type PrivilegeCategory = Tables<'privilege_categories'>
+export type ReportSettings = Tables<'report_settings'>

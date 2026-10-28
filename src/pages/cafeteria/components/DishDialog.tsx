@@ -3,12 +3,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { createDish, updateDish } from '@/api/dishes'
 import { humanError } from '@/lib/errors'
-import {
-  CATEGORY_LABELS,
-  SELECTABLE_CATEGORIES,
-  moneyToInput,
-  parseMoneyInput,
-} from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -20,18 +14,23 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { ErrorState } from '@/components/common/states'
 import type { Dish, DishCategory } from '@/types/database'
 
-/** Створення й редагування страви. Ціна — собівартість порції для школи. */
+/**
+ * Категорія лишилася в схемі обов'язковим полем, але продукт нею більше не
+ * оперує: блюдо складається з довільних компонентів. Пишемо одне й те саме
+ * значення й ніде його не показуємо.
+ */
+const DEFAULT_CATEGORY: DishCategory = 'second'
+
+/**
+ * Створення й редагування компонента блюда.
+ *
+ * Ціни тут немає навмисно: кухар указує одну вартість за все блюдо дня
+ * у редакторі меню, а не за кожну складову окремо.
+ */
 export function DishDialog({
   open,
   onOpenChange,
@@ -39,38 +38,29 @@ export function DishDialog({
 }: {
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** null — створення нової страви */
+  /** null — створення нового компонента */
   dish: Dish | null
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
-  const [category, setCategory] = useState<DishCategory>('first')
-  const [price, setPrice] = useState('')
   const [isActive, setIsActive] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setName(dish?.name ?? '')
-    setCategory(dish?.category ?? 'first')
-    setPrice(moneyToInput(dish?.price))
     setIsActive(dish?.is_active ?? true)
     setError(null)
   }, [open, dish])
 
   const mutation = useMutation({
-    mutationFn: async (payload: {
-      name: string
-      category: DishCategory
-      price: number | null
-      is_active: boolean
-    }) => {
+    mutationFn: async (payload: { name: string; is_active: boolean }) => {
       if (dish) return updateDish(dish.id, payload)
-      return createDish(payload)
+      return createDish({ ...payload, category: DEFAULT_CATEGORY, price: null })
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ['dishes'] })
-      toast.success(dish ? `Страву «${saved.name}» збережено` : `Страву «${saved.name}» додано`)
+      toast.success(dish ? `«${saved.name}» збережено` : `«${saved.name}» додано`)
       onOpenChange(false)
     },
     onError: (err) => setError(humanError(err)),
@@ -82,17 +72,11 @@ export function DishDialog({
 
     const trimmed = name.trim()
     if (!trimmed) {
-      setError('Вкажіть назву страви.')
+      setError('Вкажіть назву компонента.')
       return
     }
 
-    const parsed = parseMoneyInput(price)
-    if (parsed.error) {
-      setError(parsed.error)
-      return
-    }
-
-    mutation.mutate({ name: trimmed, category, price: parsed.value, is_active: isActive })
+    mutation.mutate({ name: trimmed, is_active: isActive })
   }
 
   return (
@@ -100,10 +84,10 @@ export function DishDialog({
       <DialogContent>
         <form onSubmit={onSubmit}>
           <DialogHeader>
-            <DialogTitle>{dish ? 'Редагувати страву' : 'Нова страва'}</DialogTitle>
+            <DialogTitle>{dish ? 'Редагувати компонент' : 'Новий компонент'}</DialogTitle>
             <DialogDescription>
-              Ціна — собівартість порції для школи. Вона автоматично підставляється
-              в меню, але для конкретного дня її можна перевизначити.
+              Компонент — це складова блюда: гречана каша, котлета, чай, виноград.
+              Вартість указується одна на все блюдо в редакторі меню.
             </DialogDescription>
           </DialogHeader>
 
@@ -114,51 +98,16 @@ export function DishDialog({
                 id="dish-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Борщ український"
+                placeholder="Гречана каша"
                 autoFocus
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="dish-category">Категорія</Label>
-              <Select value={category} onValueChange={(value) => setCategory(value as DishCategory)}>
-                <SelectTrigger id="dish-category" className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SELECTABLE_CATEGORIES.map((item) => (
-                    <SelectItem key={item} value={item}>
-                      {CATEGORY_LABELS[item]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <p className="text-xs text-muted-foreground">
-              Сніданок складається з кількох таких позицій, і в кожної своя ціна.
-              Скільки саме й у якому поєднанні — вирішує їдальня.
-            </p>
-
-            <div className="space-y-2">
-              <Label htmlFor="dish-price">Ціна, ₴</Label>
-              <Input
-                id="dish-price"
-                inputMode="decimal"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                placeholder="Не вказано"
-              />
-              <p className="text-xs text-muted-foreground">
-                Можна лишити порожнім — тоді страва потрапить у меню без ціни.
-              </p>
-            </div>
-
             <div className="flex items-center justify-between rounded-lg border p-3">
               <div>
-                <Label htmlFor="dish-active">Активна</Label>
+                <Label htmlFor="dish-active">Активний</Label>
                 <p className="text-xs text-muted-foreground">
-                  Неактивні страви не пропонуються в редакторі меню, але лишаються
+                  Неактивні компоненти не пропонуються в редакторі меню, але лишаються
                   в уже складених днях.
                 </p>
               </div>

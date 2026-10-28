@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { placeOrder } from '@/api/orders'
 import { useStudentDay } from '@/hooks/useStudentDay'
 import { humanError } from '@/lib/errors'
-import { CATEGORY_LABELS, CATEGORY_ORDER, formatCutoffTime, formatDateWithWeekday } from '@/lib/format'
+import { formatCutoffTime, formatDateWithWeekday } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingState } from '@/components/common/states'
 
@@ -47,14 +47,13 @@ export default function StudentConfirmPage() {
   if (error) return <ErrorState error={error} />
   if (!student || !day || day.menu_date !== state.menuDate) return <Navigate to="/me" replace />
 
-  // Сніданок замовляється цілком, тож показуємо весь склад — але саме той,
+  // Блюдо замовляється цілком, тож показуємо весь склад — але саме той,
   // який учень бачив на попередньому екрані.
   const chosen = items.filter((item) => state.menuItemIds.includes(item.id))
 
-  const groups = CATEGORY_ORDER.map((category) => ({
-    category,
-    items: chosen.filter((item) => item.dishes.category === category),
-  })).filter((group) => group.items.length > 0)
+  const names = chosen
+    .map((item) => item.dishes.name)
+    .sort((a, b) => a.localeCompare(b, 'uk'))
 
   return (
     <div className="space-y-5">
@@ -66,21 +65,14 @@ export default function StudentConfirmPage() {
       </div>
 
       <div className="space-y-3 rounded-xl border p-4">
-        <p className="font-medium">Сніданок</p>
-        {groups.map((group) => (
-          <div key={group.category}>
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {CATEGORY_LABELS[group.category]}
-            </p>
-            <ul className="mt-1 space-y-0.5">
-              {group.items.map((item) => (
-                <li key={item.id} className="text-base">
-                  {item.dishes.name}
-                </li>
-              ))}
-            </ul>
-          </div>
-        ))}
+        <p className="font-medium">Блюдо дня</p>
+        <ul className="space-y-1">
+          {names.map((name) => (
+            <li key={name} className="text-base">
+              {name}
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-sm text-muted-foreground">

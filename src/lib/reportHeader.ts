@@ -1,3 +1,5 @@
+import { SCHOOL_NAME } from './school'
+
 const STORAGE_KEY = 'eat.report-header'
 
 /**
@@ -9,10 +11,11 @@ const STORAGE_KEY = 'eat.report-header'
  */
 export function readReportHeader(): string {
   try {
-    return localStorage.getItem(STORAGE_KEY) ?? ''
+    // Назва закладу вже відома — підставляємо її, поки не змінили вручну.
+    return localStorage.getItem(STORAGE_KEY) ?? SCHOOL_NAME
   } catch {
-    // Приватний режим або заборонене сховище — просто працюємо без заголовка.
-    return ''
+    // Приватний режим або заборонене сховище — працюємо без збереження.
+    return SCHOOL_NAME
   }
 }
 

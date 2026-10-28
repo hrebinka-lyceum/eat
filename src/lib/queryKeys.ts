@@ -24,4 +24,7 @@ export const qk = {
   students: (classId: string, includeInactive = false) =>
     ['students', classId, { includeInactive }] as const,
   classes: (year?: string) => ['classes', year ?? 'all'] as const,
+  privilegeCategories: () => ['privilege-categories'] as const,
+  reportSettings: () => ['report-settings'] as const,
+  mealOrders: (from: string, to: string) => ['stats', 'meal-orders', from, to] as const,
 }

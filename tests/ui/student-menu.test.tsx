@@ -11,7 +11,7 @@ const day = {
   created_at: '2026-09-01T00:00:00Z',
 }
 
-// Сніданок із трьох позицій різних категорій — саме так його складає їдальня.
+// Блюдо з трьох компонентів — саме так його складає кухар.
 const items = [
   { id: 'mi1', menu_date: '2026-09-01', dish_id: 'd1', dishes: { id: 'd1', name: 'Каша вівсяна', category: 'second' } },
   { id: 'mi2', menu_date: '2026-09-01', dish_id: 'd2', dishes: { id: 'd2', name: 'Чай з цукром', category: 'drink' } },
@@ -64,7 +64,7 @@ beforeEach(() => {
 })
 
 describe('екран учня', () => {
-  it('показує сніданок цілком і не пропонує обирати страви', async () => {
+  it('показує блюдо цілком і не пропонує обирати компоненти', async () => {
     const { container } = renderPage()
 
     expect(await screen.findByText('Каша вівсяна')).toBeInTheDocument()
@@ -79,7 +79,7 @@ describe('екран учня', () => {
   })
 
   // Головне: на сервер іде ВЕСЬ склад дня, а не якась його частина.
-  it('замовляє весь склад дня однією дією', async () => {
+  it('замовляє весь склад блюда однією дією', async () => {
     renderPage()
     await screen.findByText('Каша вівсяна')
 

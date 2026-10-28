@@ -39,7 +39,7 @@ const item = (id: string, name: string, category: string) => ({
   id, menu_date: DATE, dish_id: `d${id}`, dishes: { id: `d${id}`, name, category },
 })
 
-// Сніданок дня — кілька позицій, які беруться цілком.
+// Блюдо дня — кілька компонентів, які беруться цілком.
 const items = [
   item('mi1', 'Борщ український', 'first'),
   item('mi2', 'Котлета з пюре', 'second'),
@@ -79,18 +79,18 @@ beforeEach(() => {
 })
 
 const renderPage = () => renderWithProviders(<ClassOrdersPage />, { role: 'teacher' })
-const box = (last: string) => screen.getByRole('checkbox', { name: `Сніданок для ${last}` })
+const box = (last: string) => screen.getByRole('checkbox', { name: `Блюдо для ${last}` })
 const allBox = () => screen.getByRole('checkbox', { name: 'Обрати всіх, хто ще не замовив' })
 
 describe('замовлення за клас', () => {
-  it('показує склад сніданку й одну галочку на учня — без жодної суми', async () => {
+  it('показує склад блюда й одну галочку на учня — без жодної суми', async () => {
     const { container } = renderPage()
 
     expect(await screen.findByText('Іваненко Тест')).toBeInTheDocument()
-    expect(screen.getByText('Сніданок на цей день')).toBeInTheDocument()
-    expect(screen.getByText(/Борщ український · Котлета з пюре · Компот/)).toBeInTheDocument()
+    expect(screen.getByText('Блюдо на цей день')).toBeInTheDocument()
+    expect(screen.getByText(/Борщ український · Компот · Котлета з пюре/)).toBeInTheDocument()
 
-    // Одна галочка на учня, а не сітка «учень × страви».
+    // Одна галочка на учня, а не сітка «учень × компоненти».
     expect(box('Іваненко')).toBeInTheDocument()
     expect(screen.queryByRole('checkbox', { name: /Борщ український для/ })).not.toBeInTheDocument()
     expect(hasMoney(container)).toBe(false)
@@ -125,7 +125,7 @@ describe('замовлення за клас', () => {
   })
 
   // Головне: кожному обраному замовляється ВЕСЬ склад дня.
-  it('замовляє весь сніданок кожному обраному окремим викликом', async () => {
+  it('замовляє все блюдо кожному обраному окремим викликом', async () => {
     renderPage()
     await screen.findByText('Іваненко Тест')
 
@@ -138,8 +138,13 @@ describe('замовлення за клас', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: 'Замовити' }))
 
     await waitFor(() => expect(placeOrder).toHaveBeenCalledTimes(2))
-    expect(placeOrder).toHaveBeenCalledWith('s1', DATE, ['mi1', 'mi2', 'mi3'])
-    expect(placeOrder).toHaveBeenCalledWith('s2', DATE, ['mi1', 'mi2', 'mi3'])
+    // Порядок позицій неважливий — сервер їх однаково ігнорує; важливо,
+    // що йде ВЕСЬ склад дня, а не частина.
+    for (const studentId of ['s1', 's2']) {
+      const call = placeOrder.mock.calls.find((args) => args[0] === studentId)!
+      expect(call[1]).toBe(DATE)
+      expect([...(call[2] as string[])].sort()).toEqual(['mi1', 'mi2', 'mi3'])
+    }
   })
 
   it('якщо частина замовлень не пройшла — винних названо поіменно', async () => {

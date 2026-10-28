@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { unwrap, unwrapMaybe } from './helpers'
+import { humanErrorWith } from '@/lib/errors'
 import type { Profile, UserRole, Views } from '@/types/database'
 
 export async function getProfile(userId: string): Promise<Profile | null> {
@@ -61,10 +62,29 @@ export async function setFullName(profileId: string, fullName: string): Promise<
   )
 }
 
-/** Керівники без класу в поточному році — кандидати на нові п'яті. */
+/** Керівники без класу в поточному році — кандидати на нові вхідні класи. */
 export async function listUnassignedTeachers(): Promise<Views<'v_unassigned_teachers'>[]> {
   return unwrap(
     await supabase.from('v_unassigned_teachers').select('*').order('full_name'),
     'Не вдалося отримати список вільних керівників.',
   )
+}
+
+/**
+ * Видалення акаунта — лише суперадмін і не власний. Класи лишаються без
+ * керівника, а в історії замовлень і журналі пільг автор стає «невідомо хто».
+ */
+export async function deleteUser(profileId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_user', { p_user_id: profileId })
+  if (error) {
+    throw new Error(
+      humanErrorWith(
+        error,
+        {
+          PGRST202: 'Видалення акаунтів ще не налаштоване на сервері. Зверніться до адміністратора системи.',
+        },
+        'Не вдалося видалити акаунт.',
+      ),
+    )
+  }
 }

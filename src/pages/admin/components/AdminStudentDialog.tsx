@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Star, UserMinus, UserPlus } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { KeyRound, Star, Trash2, UserMinus, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
-import { getPrivilegeLog, restoreStudent, retireStudent, setPrivilege } from '@/api/students'
-import { qk } from '@/lib/queryKeys'
+import { restoreStudent, retireStudent } from '@/api/students'
+import { useAuth } from '@/auth/AuthContext'
 import { humanError } from '@/lib/errors'
 import { formatDate, fullName, toIsoDate } from '@/lib/format'
 import { useCredentialsFlow } from '@/hooks/useCredentialsFlow'
 import { CredentialsDialog } from '@/components/common/CredentialsDialog'
 import { ErrorState } from '@/components/common/states'
+import { StudentProfileForm } from '@/components/students/StudentProfileForm'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -18,12 +19,10 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
-import { Textarea } from '@/components/ui/textarea'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { StudentOrdersTab } from './StudentOrdersTab'
 import { StudentTransferTab } from './StudentTransferTab'
+import { DeleteStudentDialog } from './DeleteStudentDialog'
 import type { StudentWithClass } from '@/api/students'
 
 /** Картка учня для адміністрації: усе про одну дитину в одному місці. */
@@ -36,38 +35,23 @@ export function AdminStudentDialog({
 }) {
   const queryClient = useQueryClient()
   const credentials = useCredentialsFlow()
-  const [privileged, setPrivileged] = useState(false)
-  const [note, setNote] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [confirmRetire, setConfirmRetire] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     if (!student) return
-    setPrivileged(student.is_privileged)
-    setNote(student.privilege_note ?? '')
     setError(null)
     setConfirmRetire(false)
+    setConfirmDelete(false)
   }, [student])
-
-  const logQuery = useQuery({
-    queryKey: qk.privilegeLog(student?.id ?? ''),
-    queryFn: () => getPrivilegeLog(student!.id, 3),
-    enabled: Boolean(student),
-  })
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({ queryKey: ['students'] })
     await queryClient.invalidateQueries({ queryKey: ['privilege-log'] })
   }
 
-  const savePrivilege = useMutation({
-    mutationFn: () => setPrivilege(student!.id, privileged, note.trim() || null),
-    onSuccess: async () => {
-      await invalidate()
-      toast.success('Збережено')
-    },
-    onError: (err) => setError(humanError(err)),
-  })
+  const { role } = useAuth()
 
   const retire = useMutation({
     mutationFn: () => retireStudent(student!.id, toIsoDate()),
@@ -102,8 +86,6 @@ export function AdminStudentDialog({
       />
     )
   }
-
-  const lastLog = logQuery.data?.[0] ?? null
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -171,42 +153,7 @@ export function AdminStudentDialog({
               )}
             </div>
 
-            <div className="space-y-3 rounded-lg border p-3">
-              <div className="flex items-center justify-between gap-3">
-                <Label htmlFor="admin-privileged">Пільгове харчування</Label>
-                <Switch
-                  id="admin-privileged"
-                  checked={privileged}
-                  onCheckedChange={setPrivileged}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label
-                  htmlFor="admin-note"
-                  className="text-xs font-normal text-muted-foreground"
-                >
-                  Підстава (документ, рішення)
-                </Label>
-                <Textarea
-                  id="admin-note"
-                  rows={2}
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-              </div>
-              {lastLog ? (
-                <p className="text-xs text-muted-foreground">
-                  Останній запис: {lastLog.new_value ? 'пільгу поставлено' : 'пільгу знято'}{' '}
-                  {formatDate(lastLog.changed_at)} —{' '}
-                  {lastLog.profiles?.full_name ?? 'невідомо хто'}
-                </p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Пільговий статус ще не змінювали.</p>
-              )}
-              <Button size="sm" disabled={savePrivilege.isPending} onClick={() => savePrivilege.mutate()}>
-                {savePrivilege.isPending ? 'Зберігаємо…' : 'Зберегти'}
-              </Button>
-            </div>
+            <StudentProfileForm student={student} idPrefix="admin-student" unknownAuthor="невідомо хто" />
 
             <div className="rounded-lg border border-dashed p-3">
               {student.is_active ? (
@@ -249,7 +196,26 @@ export function AdminStudentDialog({
               )}
             </div>
 
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-destructive/40 p-3">
+              <p className="text-sm text-muted-foreground">
+                {role === 'superadmin'
+                  ? 'Видалення учня з історією замовлень стирає її зі звітів — перед цим буде окреме попередження.'
+                  : 'Видалити можна лише учня, який ще жодного разу не харчувався, — наприклад, внесеного помилково.'}
+              </p>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(true)}>
+                <Trash2 className="size-4" aria-hidden />
+                Видалити учня
+              </Button>
+            </div>
+
             {error ? <ErrorState error={new Error(error)} /> : null}
+
+            <DeleteStudentDialog
+              student={student}
+              open={confirmDelete}
+              onOpenChange={setConfirmDelete}
+              onDeleted={() => onOpenChange(false)}
+            />
           </TabsContent>
 
           <TabsContent value="orders" className="pt-4">

@@ -5,6 +5,7 @@
 //  не видно (одного разу підсумок охоплення показав 118,5%), і саме її
 //  найдешевше закрити тестами.
 // ---------------------------------------------------------------------------
+import { compareClassNames } from './grades'
 
 export interface CoverageDay {
   class_id: string
@@ -47,7 +48,7 @@ export function aggregateCoverage(days: CoverageDay[]): CoverageClass[] {
     map.set(day.class_id, current)
   }
 
-  return [...map.values()].sort((a, b) => a.class_name.localeCompare(b.class_name, 'uk'))
+  return [...map.values()].sort((a, b) => compareClassNames(a.class_name, b.class_name))
 }
 
 /**
@@ -118,7 +119,7 @@ export interface CostRow {
   class_id: string
   privileged: boolean
   cost: number
-  missing_prices: number
+  unpriced: boolean
 }
 
 export interface ReimbursementRow {
@@ -131,16 +132,16 @@ export interface ReimbursementRow {
 }
 
 /**
- * Розкладає замовлення по класах і за ознакою пільги. Окремо рахує позиції
- * без ціни: вони додають до суми нуль, і без попередження звіт занизив би
+ * Розкладає замовлення по класах і за ознакою пільги. Окремо рахує замовлення
+ * без вартості: вони додають до суми нуль, і без попередження звіт занизив би
  * відшкодування.
  */
 export function aggregateReimbursement(
   orders: CostRow[],
   classNameOf: (classId: string) => string,
-): { rows: ReimbursementRow[]; missingPrices: number } {
+): { rows: ReimbursementRow[]; unpricedOrders: number } {
   const map = new Map<string, ReimbursementRow>()
-  let missingPrices = 0
+  let unpricedOrders = 0
 
   for (const order of orders) {
     const current = map.get(order.class_id) ?? {
@@ -159,13 +160,13 @@ export function aggregateReimbursement(
       current.regular_portions += 1
       current.regular_cost += order.cost
     }
-    missingPrices += order.missing_prices
+    if (order.unpriced) unpricedOrders += 1
     map.set(order.class_id, current)
   }
 
   return {
-    rows: [...map.values()].sort((a, b) => a.class_name.localeCompare(b.class_name, 'uk')),
-    missingPrices,
+    rows: [...map.values()].sort((a, b) => compareClassNames(a.class_name, b.class_name)),
+    unpricedOrders,
   }
 }
 

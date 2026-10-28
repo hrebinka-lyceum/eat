@@ -32,17 +32,23 @@ export function buildCsv<T>(rows: T[], columns: CsvColumn<T>[]): string {
   return '\ufeff' + [header, ...body].join('\r\n') + '\r\n'
 }
 
-/** Формує CSV і віддає його користувачу як файл. */
-export function exportToCsv<T>(rows: T[], columns: CsvColumn<T>[], filename: string): void {
-  const blob = new Blob([buildCsv(rows, columns)], { type: 'text/csv;charset=utf-8;' })
+/** Віддає готовий файл користувачу як завантаження. */
+export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = filename.endsWith('.csv') ? filename : `${filename}.csv`
+  link.download = filename
   document.body.appendChild(link)
   link.click()
   link.remove()
-  URL.revokeObjectURL(url)
+  // Не одразу: Firefox інколи не встигає почати завантаження великого файлу.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+/** Формує CSV і віддає його користувачу як файл. */
+export function exportToCsv<T>(rows: T[], columns: CsvColumn<T>[], filename: string): void {
+  const blob = new Blob([buildCsv(rows, columns)], { type: 'text/csv;charset=utf-8;' })
+  downloadBlob(blob, filename.endsWith('.csv') ? filename : `${filename}.csv`)
 }
 
 /** Ім'я файлу з датою: «порції-2026-09-01.csv» */

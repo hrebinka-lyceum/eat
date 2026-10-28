@@ -4,13 +4,16 @@ import { humanErrorWith } from '@/lib/errors'
 import type { Dish, TablesInsert, TablesUpdate } from '@/types/database'
 
 /**
- * Довідник страв. Ціна — собівартість порції для школи; редагують її
- * лише їдальня та адміністрація, а бачать її не всі ролі.
+ * Довідник компонентів блюда (гречана каша, котлета, чай…).
+ *
+ * `category` і `price` у схемі лишилися, але продукт ними більше не оперує:
+ * категорій немає, а вартість указується одна на все блюдо дня. Тому в
+ * довіднику — лише назва й активність.
  */
 export async function listDishes(opts: { includeInactive?: boolean } = {}): Promise<Dish[]> {
   let query = supabase.from('dishes').select('*')
   if (!opts.includeInactive) query = query.eq('is_active', true)
-  return unwrap(await query.order('category').order('name'), 'Не вдалося отримати довідник страв.')
+  return unwrap(await query.order('name'), 'Не вдалося отримати довідник компонентів.')
 }
 
 export async function createDish(payload: TablesInsert<'dishes'>): Promise<Dish> {

@@ -4,6 +4,7 @@ import { privilegeLogFor, privilegedStudents, type PrivilegeLogRow } from '@/api
 import { studentMonths } from '@/api/stats'
 import { formatMonthValue, monthValueBounds, toMonthValue } from '@/lib/dates'
 import { formatDate, fullName } from '@/lib/format'
+import { UNCATEGORIZED_LABEL } from '@/lib/mealReport'
 import { ReportFrame } from '@/components/common/ReportFrame'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
@@ -19,7 +20,7 @@ import {
 } from '@/components/ui/table'
 
 /**
- * Пільговики з підставами — той папір, який просять першим, коли питають,
+ * Пільговики з категоріями — той папір, який просять першим, коли питають,
  * на якій підставі дитина харчується безкоштовно.
  */
 export default function PrivilegedReport() {
@@ -68,7 +69,7 @@ export default function PrivilegedReport() {
   return (
     <ReportFrame
       title="Пільгові учні"
-      description="Хто має пільгове харчування, на якій підставі та хто цей статус поставив."
+      description="Хто має пільгове харчування, за якою категорією та хто цей статус поставив."
       periodLabel={`станом на сьогодні, харчування за ${formatMonthValue(month)}`}
       params={
         <div className="space-y-2">
@@ -89,7 +90,7 @@ export default function PrivilegedReport() {
           columns={[
             { header: 'Учень', value: (r) => fullName(r.last_name, r.first_name) },
             { header: 'Клас', value: (r) => r.classes?.name ?? '' },
-            { header: 'Підстава', value: (r) => r.privilege_note ?? '' },
+            { header: 'Категорія', value: (r) => r.privilege_categories?.name ?? UNCATEGORIZED_LABEL },
             {
               header: 'Статус поставив',
               value: (r) => lastLog.get(r.id)?.profiles?.full_name ?? '',
@@ -120,7 +121,7 @@ export default function PrivilegedReport() {
               <TableRow>
                 <TableHead>Учень</TableHead>
                 <TableHead>Клас</TableHead>
-                <TableHead>Підстава</TableHead>
+                <TableHead>Категорія</TableHead>
                 <TableHead>Статус поставив</TableHead>
                 <TableHead className="text-right">Днів за місяць</TableHead>
               </TableRow>
@@ -134,8 +135,10 @@ export default function PrivilegedReport() {
                       {fullName(student.last_name, student.first_name)}
                     </TableCell>
                     <TableCell>{student.classes?.name ?? '—'}</TableCell>
-                    <TableCell className="max-w-72 text-muted-foreground">
-                      {student.privilege_note || 'не вказано'}
+                    <TableCell className="max-w-72">
+                      {student.privilege_categories?.name ?? (
+                        <span className="text-muted-foreground">{UNCATEGORIZED_LABEL}</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {log ? (

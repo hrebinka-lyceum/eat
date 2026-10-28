@@ -226,3 +226,47 @@ export async function areOrdersOpen(menuDate: string): Promise<boolean | null> {
   if (error) return null
   return data === true
 }
+
+/**
+ * Вартість блюда на день.
+ *
+ * Кухар указує одну суму за все блюдо, а схема зберігає ціну на кожній позиції
+ * меню. Тому суму кладемо на один компонент (перший за ідентифікатором — порядок
+ * стабільний), а решті ставимо null. Усе, що рахує гроші — v_daily_totals,
+ * costRows, звіт про відшкодування — підсумовує price_at_order, тож для них
+ * нічого не змінюється.
+ *
+ * ⚠ Інваріант «рівно один компонент несе ціну» треба відновлювати після
+ * кожної зміни складу: тригер stamp_menu_item підставляє ціну з довідника
+ * при вставці, а видалення може забрати саме той компонент, що ніс суму.
+ */
+export async function setDayPrice(menuDate: string, total: number | null): Promise<void> {
+  const rows = unwrap(
+    await supabase.from('menu_items').select('id').eq('menu_date', menuDate).order('id'),
+    'Не вдалося прочитати склад блюда.',
+  ) as Array<{ id: string }>
+
+  if (rows.length === 0) return
+
+  const [carrier, ...rest] = rows
+
+  const carrierResult = await supabase
+    .from('menu_items')
+    .update({ price: total })
+    .eq('id', carrier.id)
+    .select('id')
+  if (carrierResult.error) {
+    throw new Error(humanError(carrierResult.error, 'Не вдалося зберегти вартість блюда.'))
+  }
+
+  if (rest.length > 0) {
+    const restResult = await supabase
+      .from('menu_items')
+      .update({ price: null })
+      .in('id', rest.map((row) => row.id))
+      .select('id')
+    if (restResult.error) {
+      throw new Error(humanError(restResult.error, 'Не вдалося зберегти вартість блюда.'))
+    }
+  }
+}

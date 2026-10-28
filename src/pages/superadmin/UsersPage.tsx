@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Plus } from 'lucide-react'
+import { KeyRound, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { listStaff, setRole, setStatus } from '@/api/profiles'
+import { deleteUser, listStaff, setRole, setStatus } from '@/api/profiles'
 import { listClasses } from '@/api/classes'
 import { getSettings } from '@/api/settings'
 import { useAuth } from '@/auth/AuthContext'
@@ -14,6 +14,7 @@ import { ROLE_LABELS } from '@/lib/format'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { CredentialsDialog } from '@/components/common/CredentialsDialog'
+import { ConfirmDialog, DELETE_WORD } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'
@@ -38,12 +39,13 @@ import type { Profile, UserRole } from '@/types/database'
 
 const ASSIGNABLE_ROLES: UserRole[] = ['superadmin', 'admin', 'cafeteria', 'teacher']
 
-/** Співробітники: створення, ролі, деактивація, скидання паролів. */
+/** Співробітники: створення, ролі, деактивація, скидання паролів, видалення. */
 export default function UsersPage() {
   const queryClient = useQueryClient()
   const { userId } = useAuth()
   const credentials = useCredentialsFlow()
   const [createOpen, setCreateOpen] = useState(false)
+  const [toDelete, setToDelete] = useState<Profile | null>(null)
 
   const staffQuery = useQuery({ queryKey: ['profiles', 'staff'], queryFn: listStaff })
   const settingsQuery = useQuery({ queryKey: qk.settings(), queryFn: getSettings })
@@ -81,6 +83,20 @@ export default function UsersPage() {
       toast.success(variables.active ? 'Акаунт активовано' : 'Акаунт деактивовано')
     },
     onError: (err) => toast.error(humanError(err)),
+  })
+
+  const remove = useMutation({
+    mutationFn: (profile: Profile) => deleteUser(profile.id),
+    onSuccess: async () => {
+      await invalidate()
+      await queryClient.invalidateQueries({ queryKey: ['classes'] })
+      toast.success('Акаунт видалено')
+      setToDelete(null)
+    },
+    onError: (err) => {
+      setToDelete(null)
+      toast.error(humanError(err))
+    },
   })
 
   const staff = staffQuery.data ?? []
@@ -126,7 +142,7 @@ export default function UsersPage() {
                 <TableHead className="w-56">Роль</TableHead>
                 <TableHead>Клас</TableHead>
                 <TableHead>Активний</TableHead>
-                <TableHead className="w-40" />
+                <TableHead className="w-56" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -182,15 +198,28 @@ export default function UsersPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={credentials.busy}
-                        onClick={() => void credentials.reset(profile.id)}
-                      >
-                        <KeyRound className="size-4" aria-hidden />
-                        Скинути пароль
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={credentials.busy}
+                          onClick={() => void credentials.reset(profile.id)}
+                        >
+                          <KeyRound className="size-4" aria-hidden />
+                          Скинути пароль
+                        </Button>
+                        {/* Власний акаунт не видаляється: інакше суперадмін
+                            здатен лишити школу без жодного адміністратора. */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          disabled={isSelf || remove.isPending}
+                          aria-label={`Видалити ${profile.full_name}`}
+                          onClick={() => setToDelete(profile)}
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -212,6 +241,31 @@ export default function UsersPage() {
         title={credentials.title}
         onClose={credentials.close}
       />
+
+      {toDelete ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setToDelete(null)}
+          title={`Видалити акаунт «${toDelete.full_name || 'Без імені'}»?`}
+          description={
+            <div className="space-y-2">
+              <p>
+                Людина більше не зможе увійти, а відновити акаунт буде неможливо. Якщо
+                співробітник лише тимчасово не працює, краще вимкніть «Активний».
+              </p>
+              {toDelete.role === 'teacher' && classByTeacher.has(toDelete.id) ? (
+                <p>Клас {classByTeacher.get(toDelete.id)} залишиться без класного керівника.</p>
+              ) : null}
+              <p>Замовлення й звіти збережуться, але там, де був автор, стоятиме «невідомо хто».</p>
+            </div>
+          }
+          confirmLabel="Видалити назавжди"
+          confirmWord={DELETE_WORD}
+          destructive
+          busy={remove.isPending}
+          onConfirm={() => remove.mutate(toDelete)}
+        />
+      ) : null}
     </div>
   )
 }

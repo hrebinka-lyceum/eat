@@ -4,12 +4,7 @@ import { Pencil, Plus, Search, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { deleteDish, listDishes, setDishActive } from '@/api/dishes'
 import { qk } from '@/lib/queryKeys'
-import {
-  CATEGORY_LABELS,
-  CATEGORY_ORDER,
-  SELECTABLE_CATEGORIES,
-  formatMoney,
-} from '@/lib/format'
+
 import { humanError } from '@/lib/errors'
 import { csvFilename } from '@/lib/csv'
 import { PageHeader } from '@/components/common/PageHeader'
@@ -20,7 +15,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
-import { Badge } from '@/components/ui/badge'
 import {
   Table,
   TableBody,
@@ -29,27 +23,17 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { DishDialog } from './components/DishDialog'
-import type { Dish, DishCategory } from '@/types/database'
-
-type CategoryFilter = DishCategory | 'all'
+import type { Dish } from '@/types/database'
 
 /**
- * Довідник страв. Екран доступний лише їдальні та адміністрації —
- * саме тому тут вільно показується ціна.
+ * Довідник компонентів блюда. Цін тут немає: вартість указується одна на все
+ * блюдо дня в редакторі меню, а не за кожну складову.
  */
 export default function DishesPage() {
   const queryClient = useQueryClient()
   const [showInactive, setShowInactive] = useState(false)
   const [search, setSearch] = useState('')
-  const [category, setCategory] = useState<CategoryFilter>('all')
   const [editing, setEditing] = useState<Dish | null>(null)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [toDelete, setToDelete] = useState<Dish | null>(null)
@@ -84,22 +68,12 @@ export default function DishesPage() {
     },
   })
 
-  // У фільтрі — перша й друга страва плюс ті категорії, що реально є в
-  // даних: страви минулих років нікуди не поділися, і знайти їх треба.
-  const filterCategories = useMemo(() => {
-    const present = new Set<DishCategory>(SELECTABLE_CATEGORIES)
-    for (const dish of dishesQuery.data ?? []) present.add(dish.category)
-    return CATEGORY_ORDER.filter((item) => present.has(item))
-  }, [dishesQuery.data])
-
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase()
-    return (dishesQuery.data ?? []).filter((dish) => {
-      if (category !== 'all' && dish.category !== category) return false
-      if (term && !dish.name.toLowerCase().includes(term)) return false
-      return true
-    })
-  }, [dishesQuery.data, search, category])
+    return (dishesQuery.data ?? []).filter(
+      (dish) => !term || dish.name.toLowerCase().includes(term),
+    )
+  }, [dishesQuery.data, search])
 
   const openCreate = () => {
     setEditing(null)
@@ -114,23 +88,21 @@ export default function DishesPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Довідник страв"
-        description="Назва, категорія, ціна й активність. Ціна — собівартість порції для школи."
+        title="Довідник компонентів"
+        description="Складові блюда: гречана каша, котлета, чай. Вартість указується одна на все блюдо."
         actions={
           <>
             <ExportButton
               rows={visible}
-              filename={csvFilename('страви')}
+              filename={csvFilename('компоненти')}
               columns={[
                 { header: 'Назва', value: (d) => d.name },
-                { header: 'Категорія', value: (d) => CATEGORY_LABELS[d.category] },
-                { header: 'Ціна, ₴', value: (d) => d.price ?? '' },
-                { header: 'Активна', value: (d) => d.is_active },
+                { header: 'Активний', value: (d) => d.is_active },
               ]}
             />
             <Button size="sm" onClick={openCreate}>
               <Plus className="size-4" aria-hidden />
-              Додати страву
+              Додати компонент
             </Button>
           </>
         }
@@ -147,28 +119,11 @@ export default function DishesPage() {
             <Input
               id="dish-search"
               className="pl-8"
-              placeholder="Назва страви"
+              placeholder="Назва компонента"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-        </div>
-
-        <div className="w-48 space-y-2">
-          <Label htmlFor="dish-filter">Категорія</Label>
-          <Select value={category} onValueChange={(value) => setCategory(value as CategoryFilter)}>
-            <SelectTrigger id="dish-filter" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Усі категорії</SelectItem>
-              {filterCategories.map((item) => (
-                <SelectItem key={item} value={item}>
-                  {CATEGORY_LABELS[item]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         <div className="flex items-center gap-2 pb-2">
@@ -184,11 +139,11 @@ export default function DishesPage() {
 
       {dishesQuery.data && visible.length === 0 ? (
         <EmptyState
-          title="Страв не знайдено"
+          title="Компонентів не знайдено"
           hint={
             dishesQuery.data.length === 0
-              ? 'Довідник порожній. Додайте першу страву — далі вона підставлятиметься в меню.'
-              : 'Спробуйте змінити пошук або категорію.'
+              ? 'Довідник порожній. Додайте перший компонент — далі його можна класти в блюдо.'
+              : 'Спробуйте інший пошуковий запит.'
           }
         />
       ) : null}
@@ -199,9 +154,7 @@ export default function DishesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Назва</TableHead>
-                <TableHead>Категорія</TableHead>
-                <TableHead className="text-right">Ціна</TableHead>
-                <TableHead>Активна</TableHead>
+                <TableHead>Активний</TableHead>
                 <TableHead className="w-24" />
               </TableRow>
             </TableHeader>
@@ -210,15 +163,9 @@ export default function DishesPage() {
                 <TableRow key={dish.id} className={dish.is_active ? undefined : 'opacity-60'}>
                   <TableCell className="font-medium">{dish.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{CATEGORY_LABELS[dish.category]}</Badge>
-                  </TableCell>
-                  <TableCell className="text-right tabular-nums">
-                    {formatMoney(dish.price)}
-                  </TableCell>
-                  <TableCell>
                     <Switch
                       checked={dish.is_active}
-                      aria-label={`Активність страви ${dish.name}`}
+                      aria-label={`Активність компонента ${dish.name}`}
                       disabled={toggleActive.isPending}
                       onCheckedChange={(active) => toggleActive.mutate({ dish, active })}
                     />
@@ -258,8 +205,8 @@ export default function DishesPage() {
         title={`Видалити «${toDelete?.name ?? ''}»?`}
         description={
           <>
-            Страву, яка вже була в меню, видалити не вийде — на неї спираються
-            замовлення. Таку страву достатньо зробити неактивною: вона зникне
+            Компонент, який уже був у меню, видалити не вийде — на нього спираються
+            замовлення. Такий компонент достатньо зробити неактивним: він зникне
             з редактора меню, а історія залишиться цілою.
           </>
         }

@@ -45,38 +45,69 @@ beforeEach(() => {
 })
 
 describe('редактор меню', () => {
-  // Склад сніданку — справа їдальні. Після зміни place_order сервер бере
-  // весь склад дня й нічого не перевіряє за категоріями, тож дві перші
-  // страви в одному сніданку цілком законні.
-  it('дозволяє скласти сніданок із двох страв однієї категорії', async () => {
+  it('показує одне поле вартості на все блюдо, а не ціну кожного компонента', async () => {
     getNextEmptyDay.mockResolvedValue(day)
     getMenuDay.mockResolvedValue(day)
     listMenuItems.mockResolvedValue([
-      menuItem('mi1', 'Борщ український', 'first'),
-      menuItem('mi2', 'Суп курячий', 'first'),
+      { ...menuItem('mi1', 'Гречана каша', 'second'), price: 62.5 },
+      { ...menuItem('mi2', 'Котлета', 'second'), price: null },
+      { ...menuItem('mi3', 'Чай', 'drink'), price: null },
     ])
 
     renderWithProviders(<MenuEditorPage />, { role: 'cafeteria' })
-    await screen.findByText('Борщ український')
+    await screen.findByText('Гречана каша')
 
-    expect(screen.queryByText(/неможливо замовити/)).not.toBeInTheDocument()
+    // Одне поле на все блюдо; сума лежить на одному компоненті, але кухар
+    // бачить її як вартість блюда.
+    const price = screen.getByLabelText('Вартість блюда') as HTMLInputElement
+    expect(price.value).toBe('62.5')
+    expect(screen.getByText('Компонентів: 3')).toBeInTheDocument()
+  })
+
+  it('без указаної вартості попереджає, що день додасть нуль', async () => {
+    getNextEmptyDay.mockResolvedValue(day)
+    getMenuDay.mockResolvedValue(day)
+    listMenuItems.mockResolvedValue([
+      { ...menuItem('mi1', 'Гречана каша', 'second'), price: null },
+    ])
+
+    renderWithProviders(<MenuEditorPage />, { role: 'cafeteria' })
+
+    expect(await screen.findByText(/Вартість блюда ще не вказана/)).toBeInTheDocument()
+  })
+
+  // Склад блюда — справа їдальні: будь-які компоненти в будь-якій кількості.
+  it('дозволяє скласти блюдо з довільних компонентів', async () => {
+    getNextEmptyDay.mockResolvedValue(day)
+    getMenuDay.mockResolvedValue(day)
+    listMenuItems.mockResolvedValue([
+      menuItem('mi1', 'Гречана каша', 'second'),
+      menuItem('mi2', 'Котлета', 'second'),
+      menuItem('mi3', 'Чай', 'drink'),
+    ])
+
+    renderWithProviders(<MenuEditorPage />, { role: 'cafeteria' })
+    await screen.findByText('Гречана каша')
+
+    expect(screen.getByText('Котлета')).toBeInTheDocument()
+    expect(screen.getByText('Чай')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Опублікувати/ }))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })
 
-  it('порожній сніданок опублікувати не можна', async () => {
+  it('порожнє блюдо опублікувати не можна', async () => {
     getNextEmptyDay.mockResolvedValue(day)
     getMenuDay.mockResolvedValue(day)
     listMenuItems.mockResolvedValue([])
 
     renderWithProviders(<MenuEditorPage />, { role: 'cafeteria' })
-    await screen.findByText('Сніданок на цей день ще не складено')
+    await screen.findByText('Блюдо на цей день ще не складено')
 
     await userEvent.click(screen.getByRole('button', { name: /Опублікувати/ }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
-  it('коректний сніданок публікується без перешкод', async () => {
+  it('складене блюдо публікується без перешкод', async () => {
     getNextEmptyDay.mockResolvedValue(day)
     getMenuDay.mockResolvedValue(day)
     listMenuItems.mockResolvedValue([
@@ -87,7 +118,7 @@ describe('редактор меню', () => {
     renderWithProviders(<MenuEditorPage />, { role: 'cafeteria' })
     await screen.findByText('Каша вівсяна')
 
-    expect(screen.queryByText('Цей сніданок неможливо замовити')).not.toBeInTheDocument()
+    expect(screen.getByText('Чай з цукром')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /Опублікувати/ }))
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })

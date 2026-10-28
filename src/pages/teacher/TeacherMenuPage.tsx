@@ -4,8 +4,6 @@ import { listMenuDays, listMenuItemsPlainForDates, type MenuItemPlain } from '@/
 import { qk } from '@/lib/queryKeys'
 import { shiftIso } from '@/lib/dates'
 import {
-  CATEGORY_LABELS,
-  CATEGORY_ORDER,
   formatCutoff,
   formatDateWithWeekday,
   toIsoDate,
@@ -73,15 +71,14 @@ export default function TeacherMenuPage() {
     <div className="space-y-6">
       <PageHeader
         title="Меню"
-        description="Сніданок на кожен опублікований день. Учень бере його цілком або ні."
+        description="Блюдо на кожен опублікований день. Учень бере його цілком або ні."
         actions={
           <ExportButton
             rows={csvRows}
             filename={csvFilename('меню')}
             columns={[
               { header: 'Дата', value: (r) => r.menu_date },
-              { header: 'Категорія', value: (r) => CATEGORY_LABELS[r.category] },
-              { header: 'Страва', value: (r) => r.name },
+              { header: 'Компонент', value: (r) => r.name },
             ]}
           />
         }
@@ -101,10 +98,9 @@ export default function TeacherMenuPage() {
       <div className="grid gap-4 md:grid-cols-2">
         {days.map((day) => {
           const items = byDate.get(day.menu_date) ?? []
-          const groups = CATEGORY_ORDER.map((category) => ({
-            category,
-            items: items.filter((item) => item.dishes.category === category),
-          })).filter((group) => group.items.length > 0)
+          const names = items
+            .map((item) => item.dishes.name)
+            .sort((a, b) => a.localeCompare(b, 'uk'))
 
           return (
             <Card key={day.menu_date}>
@@ -115,23 +111,14 @@ export default function TeacherMenuPage() {
                 </p>
               </CardHeader>
               <CardContent>
-                {groups.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Страв на цей день немає.</p>
+                {names.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Компонентів ще не додано.</p>
                 ) : (
-                  <div className="space-y-3">
-                    {groups.map((group) => (
-                      <div key={group.category}>
-                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          {CATEGORY_LABELS[group.category]}
-                        </p>
-                        <ul className="mt-1 space-y-0.5 text-sm">
-                          {group.items.map((item) => (
-                            <li key={item.id}>{item.dishes.name}</li>
-                          ))}
-                        </ul>
-                      </div>
+                  <ul className="space-y-0.5 text-sm">
+                    {names.map((name) => (
+                      <li key={name}>{name}</li>
                     ))}
-                  </div>
+                  </ul>
                 )}
               </CardContent>
             </Card>

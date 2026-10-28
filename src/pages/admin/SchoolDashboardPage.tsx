@@ -8,7 +8,6 @@ import { useCanSeeCost } from '@/auth/permissions'
 import { qk } from '@/lib/queryKeys'
 import { monthBounds } from '@/lib/dates'
 import {
-  CATEGORY_LABELS,
   formatDate,
   formatDateWithWeekday,
   formatMoney,
@@ -38,7 +37,6 @@ import {
   Table,
   TableBody,
   TableCell,
-  TableFooter,
   TableHead,
   TableHeader,
   TableRow,
@@ -416,18 +414,23 @@ export default function SchoolDashboardPage() {
 
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="font-medium">Страви за період</h2>
+              <div>
+                <h2 className="font-medium">Компоненти за період</h2>
+                <p className="text-xs text-muted-foreground">
+                  Блюдо неподільне, тож кожен компонент отримує стільки порцій,
+                  скільки було замовлень із ним. Підсумок по рядках не рахується:
+                  це не окремі страви, а складові одного блюда.
+                </p>
+              </div>
               <ExportButton
                 rows={dishTotals}
-                filename={csvFilename('страви-за-період')}
+                filename={csvFilename('компоненти-за-період')}
                 columns={[
                   { header: 'Страва', value: (d) => d.name },
                   { header: 'Порцій', value: (d) => d.portions },
                   { header: 'З них пільгових', value: (d) => d.privileged },
                   { header: 'Після дедлайну', value: (d) => d.late },
-                  ...(canSeeCost
-                    ? [{ header: 'Вартість, ₴', value: (d: (typeof dishTotals)[number]) => d.cost ?? '' }]
-                    : []),
+
                 ]}
               />
             </div>
@@ -435,46 +438,22 @@ export default function SchoolDashboardPage() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Страва</TableHead>
-                    <TableHead>Категорія</TableHead>
+                    <TableHead>Компонент</TableHead>
                     <TableHead className="text-right">Порцій</TableHead>
                     <TableHead className="text-right">З них пільгових</TableHead>
-                    {canSeeCost ? <TableHead className="text-right">Вартість</TableHead> : null}
+
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {dishTotals.map((dish) => (
                     <TableRow key={dish.id}>
                       <TableCell className="font-medium">{dish.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {CATEGORY_LABELS[dish.category as keyof typeof CATEGORY_LABELS]}
-                      </TableCell>
+
                       <TableCell className="text-right tabular-nums">{dish.portions}</TableCell>
                       <TableCell className="text-right tabular-nums">{dish.privileged}</TableCell>
-                      {canSeeCost ? (
-                        <TableCell className="text-right tabular-nums">
-                          {formatMoney(dish.cost)}
-                        </TableCell>
-                      ) : null}
                     </TableRow>
                   ))}
                 </TableBody>
-                <TableFooter>
-                  <TableRow>
-                    <TableCell colSpan={2}>Разом</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {dishTotals.reduce((sum, dish) => sum + dish.portions, 0)}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {dishTotals.reduce((sum, dish) => sum + dish.privileged, 0)}
-                    </TableCell>
-                    {canSeeCost ? (
-                      <TableCell className="text-right tabular-nums">
-                        {formatMoney(costSplit.total)}
-                      </TableCell>
-                    ) : null}
-                  </TableRow>
-                </TableFooter>
               </Table>
             </div>
           </div>

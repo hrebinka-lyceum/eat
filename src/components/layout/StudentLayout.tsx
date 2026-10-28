@@ -3,6 +3,7 @@ import { History, LogOut, UtensilsCrossed } from 'lucide-react'
 import { useAuth } from '@/auth/AuthContext'
 import { Button } from '@/components/ui/button'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
+import { SCHOOL_NAME } from '@/lib/school'
 import { cn } from '@/lib/utils'
 
 const TABS = [
@@ -26,7 +27,10 @@ export function StudentLayout() {
   return (
     <div className="flex min-h-svh flex-col bg-background">
       <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b bg-background/95 px-4 backdrop-blur">
-        <span className="truncate font-medium">{profile?.full_name || 'Учень'}</span>
+        <div className="min-w-0 leading-tight">
+          <p className="truncate text-xs text-muted-foreground">{SCHOOL_NAME}</p>
+          <p className="truncate font-medium">{profile?.full_name || 'Учень'}</p>
+        </div>
         <div className="flex items-center gap-1">
           <ThemeToggle />
           <Button variant="ghost" size="icon" aria-label="Вийти" onClick={() => void handleSignOut()}>

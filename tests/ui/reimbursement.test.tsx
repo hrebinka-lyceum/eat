@@ -21,9 +21,9 @@ const { default: ReimbursementReport } = await import('@/pages/admin/reports/Rei
 describe('звіт про відшкодування', () => {
   it('ділить порції на пільгові та звичайні', async () => {
     costRows.mockResolvedValue([
-      { menu_date: '2026-09-01', class_id: 'c1', privileged: true, cost: 60, missing_prices: 0 },
-      { menu_date: '2026-09-01', class_id: 'c1', privileged: false, cost: 40, missing_prices: 0 },
-      { menu_date: '2026-09-02', class_id: 'c1', privileged: false, cost: 40, missing_prices: 0 },
+      { menu_date: '2026-09-01', class_id: 'c1', privileged: true, cost: 60, unpriced: false },
+      { menu_date: '2026-09-01', class_id: 'c1', privileged: false, cost: 40, unpriced: false },
+      { menu_date: '2026-09-02', class_id: 'c1', privileged: false, cost: 40, unpriced: false },
     ])
 
     renderWithProviders(<ReimbursementReport />, { role: 'admin' })
@@ -33,22 +33,24 @@ describe('звіт про відшкодування', () => {
     expect(within(row).getByText('2')).toBeInTheDocument() // порцій звичайних
   })
 
-  // Пастка: страва без ціни додає до суми нуль, і звіт мовчки занижує
-  // відшкодування. Попередження має бути видно.
-  it('попереджає про позиції без ціни', async () => {
+  // Пастка: замовлення на день без вартості блюда додає до суми нуль, і звіт
+  // мовчки занижує відшкодування. Попередження має бути видно.
+  it('попереджає про замовлення без вартості', async () => {
     costRows.mockResolvedValue([
-      { menu_date: '2026-09-01', class_id: 'c1', privileged: false, cost: 24, missing_prices: 2 },
+      { menu_date: '2026-09-01', class_id: 'c1', privileged: false, cost: 0, unpriced: true },
+      { menu_date: '2026-09-02', class_id: 'c1', privileged: false, cost: 0, unpriced: true },
+      { menu_date: '2026-09-03', class_id: 'c1', privileged: false, cost: 58, unpriced: false },
     ])
 
     renderWithProviders(<ReimbursementReport />, { role: 'admin' })
 
     expect(await screen.findByText('Сума неповна')).toBeInTheDocument()
-    expect(screen.getByText(/2 позиції без ціни/)).toBeInTheDocument()
+    expect(screen.getByText(/2 замовлення цього місяця/)).toBeInTheDocument()
   })
 
   it('без таких позицій попередження немає', async () => {
     costRows.mockResolvedValue([
-      { menu_date: '2026-09-01', class_id: 'c1', privileged: false, cost: 24, missing_prices: 0 },
+      { menu_date: '2026-09-01', class_id: 'c1', privileged: false, cost: 24, unpriced: false },
     ])
 
     renderWithProviders(<ReimbursementReport />, { role: 'admin' })

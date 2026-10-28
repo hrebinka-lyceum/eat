@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { createStudent } from '@/api/students'
+import { createStudent, privilegeFields, type PrivilegeChoice } from '@/api/students'
 import { humanError } from '@/lib/errors'
 import { toIsoDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -16,6 +16,10 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ErrorState } from '@/components/common/states'
+import { GenderSelect, PrivilegeSelect } from '@/components/students/StudentFields'
+import type { Gender } from '@/types/database'
+
+const NO_PRIVILEGE: PrivilegeChoice = { kind: 'none' }
 
 /**
  * Додавання учня до реєстру харчування.
@@ -36,6 +40,8 @@ export function AddStudentDialog({
   const queryClient = useQueryClient()
   const [lastName, setLastName] = useState('')
   const [firstName, setFirstName] = useState('')
+  const [gender, setGender] = useState<Gender | null>(null)
+  const [privilege, setPrivilege] = useState<PrivilegeChoice>(NO_PRIVILEGE)
   const [enrolledFrom, setEnrolledFrom] = useState(toIsoDate())
   const [error, setError] = useState<string | null>(null)
 
@@ -43,6 +49,8 @@ export function AddStudentDialog({
     if (!open) return
     setLastName('')
     setFirstName('')
+    setGender(null)
+    setPrivilege(NO_PRIVILEGE)
     setEnrolledFrom(toIsoDate())
     setError(null)
   }, [open])
@@ -53,6 +61,8 @@ export function AddStudentDialog({
         class_id: classId,
         last_name: lastName.trim(),
         first_name: firstName.trim(),
+        gender,
+        ...privilegeFields(privilege),
         enrolled_from: enrolledFrom,
       }),
     onSuccess: async (student) => {
@@ -70,6 +80,11 @@ export function AddStudentDialog({
       setError('Заповніть прізвище та ім’я.')
       return
     }
+    // Стать потрібна для звітів за статтю — без неї дитина випаде з розрізу.
+    if (!gender) {
+      setError('Вкажіть стать.')
+      return
+    }
     if (!enrolledFrom) {
       setError('Вкажіть, з якої дати учень харчується.')
       return
@@ -79,7 +94,7 @@ export function AddStudentDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-[min(32rem,calc(100%-2rem))]">
         <form onSubmit={onSubmit}>
           <DialogHeader>
             <DialogTitle>Додати учня</DialogTitle>
@@ -105,6 +120,15 @@ export function AddStudentDialog({
                 id="student-first"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <GenderSelect id="student-gender" value={gender} onChange={setGender} />
+              <PrivilegeSelect
+                id="student-privilege"
+                value={privilege}
+                initial={NO_PRIVILEGE}
+                onChange={setPrivilege}
               />
             </div>
             <div className="space-y-2">

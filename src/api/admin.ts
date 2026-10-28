@@ -3,14 +3,24 @@ import { unwrap } from './helpers'
 import { humanError } from '@/lib/errors'
 import type { PromoteResult, PurgePreview, PurgeResult, PurgeScope, PurgeLogEntry } from '@/types/database'
 
-/** Переведення року. Незворотна дія, доступна лише суперадміну. */
+/**
+ * Переведення року. Незворотна дія, доступна лише суперадміну.
+ *
+ * `minGrade` — наймолодша паралель школи: саме її добирають новими класами.
+ * `maxGrade` — випускна.
+ */
 export async function promoteAcademicYear(
   newYear: string,
-  startDate?: string,
+  options: { startDate?: string; minGrade?: number; maxGrade?: number } = {},
 ): Promise<PromoteResult> {
+  // Межі паралелей передаємо завжди. Типові значення функції — 5 і 11; для
+  // школи з початковими класами вони створили б другий комплект п'ятих
+  // класів поверх уже переведених четвертих і впали б на унікальності.
   const { data, error } = await supabase.rpc('promote_academic_year', {
     p_new_year: newYear,
-    ...(startDate ? { p_start_date: startDate } : {}),
+    ...(options.startDate ? { p_start_date: options.startDate } : {}),
+    ...(options.minGrade !== undefined ? { p_min_grade: options.minGrade } : {}),
+    ...(options.maxGrade !== undefined ? { p_max_grade: options.maxGrade } : {}),
   })
   if (error) throw new Error(humanError(error, 'Не вдалося перевести навчальний рік.'))
   return data as PromoteResult

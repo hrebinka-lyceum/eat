@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ThemeToggle } from '@/components/common/ThemeToggle'
+import { APP_NAME, SCHOOL_NAME } from '@/lib/school'
 import { cn } from '@/lib/utils'
 
 function groupItems(items: NavItem[]) {
@@ -49,9 +50,12 @@ export function AppLayout() {
         className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur"
       >
         <div className="flex h-14 items-center justify-between gap-3 px-4">
-          <div className="flex items-center gap-2 font-semibold">
-            <UtensilsCrossed className="size-5" aria-hidden />
-            <span>Шкільне харчування</span>
+          <div className="flex min-w-0 items-center gap-2">
+            <UtensilsCrossed className="size-5 shrink-0" aria-hidden />
+            <div className="min-w-0 leading-tight">
+              <p className="truncate font-semibold">{SCHOOL_NAME}</p>
+              <p className="truncate text-xs text-muted-foreground">{APP_NAME}</p>
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <ThemeToggle />

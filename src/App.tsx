@@ -33,6 +33,8 @@ import TimesheetReport from '@/pages/admin/reports/TimesheetReport'
 import CoverageReport from '@/pages/admin/reports/CoverageReport'
 import PrivilegedReport from '@/pages/admin/reports/PrivilegedReport'
 import LateOrdersReport from '@/pages/admin/reports/LateOrdersReport'
+import GenderReport from '@/pages/admin/reports/GenderReport'
+import SchoolSettingsPage from '@/pages/admin/SchoolSettingsPage'
 
 import UsersPage from '@/pages/superadmin/UsersPage'
 import SettingsPage from '@/pages/superadmin/SettingsPage'
@@ -47,6 +49,8 @@ const PortionsPage = lazy(() => import('@/pages/cafeteria/PortionsPage'))
 const OrderStatsPage = lazy(() => import('@/pages/cafeteria/OrderStatsPage'))
 const SchoolDashboardPage = lazy(() => import('@/pages/admin/SchoolDashboardPage'))
 const ClassDashboardPage = lazy(() => import('@/pages/teacher/ClassDashboardPage'))
+// Тягне docx і pdfmake лише на натискання кнопки, але й сама сторінка рідкісна.
+const OrganizationReport = lazy(() => import('@/pages/admin/reports/OrganizationReport'))
 
 // Той самий базовий шлях, що й у vite.config.ts. Розбіжність між ними
 // дає білий екран без жодної помилки в консолі.
@@ -126,6 +130,9 @@ export default function App() {
                       <Route path="/reports/coverage" element={<CoverageReport />} />
                       <Route path="/reports/privileged" element={<PrivilegedReport />} />
                       <Route path="/reports/late" element={<LateOrdersReport />} />
+                      <Route path="/reports/gender" element={<GenderReport />} />
+                      <Route path="/reports/organization" element={<OrganizationReport />} />
+                      <Route path="/school-settings" element={<SchoolSettingsPage />} />
                     </Route>
 
                     <Route element={<RequireRole roles={['superadmin']} />}>

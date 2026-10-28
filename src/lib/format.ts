@@ -1,6 +1,6 @@
 import { format, parseISO } from 'date-fns'
 import { uk } from 'date-fns/locale'
-import type { DishCategory, MenuStatus, UserRole } from '@/types/database'
+import type { Gender, MenuStatus, UserRole } from '@/types/database'
 
 export const TIMEZONE = 'Europe/Kyiv'
 
@@ -12,30 +12,16 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   student: 'Учень',
 }
 
-export const CATEGORY_LABELS: Record<DishCategory, string> = {
-  first: 'Перша страва',
-  second: 'Друга страва',
-  side: 'Гарнір',
-  drink: 'Напій',
-  bakery: 'Випічка',
+export const GENDER_LABELS: Record<Gender, string> = {
+  male: 'Чоловіча',
+  female: 'Жіноча',
 }
 
-/**
- * Порядок категорій для показу. Тут навмисно лишаються всі п'ять: гарнір,
- * напій і випічку більше не заводять, але страви минулих років з такими
- * категоріями є в базі, і в меню чи звіті вони мають малюватися, а не
- * тихо зникати.
- */
-export const CATEGORY_ORDER: DishCategory[] = ['first', 'second', 'side', 'drink', 'bakery']
-
-/**
- * Категорії, доступні для нової страви — усі п'ять.
- *
- * Сніданок складається з кількох позицій із власними цінами (каша, чай,
- * булочка), тож гарнір, напій і випічка знову є самостійними стравами
- * довідника, а не «додатком до другої».
- */
-export const SELECTABLE_CATEGORIES: DishCategory[] = CATEGORY_ORDER
+/** Для вузької колонки таблиці. */
+export const GENDER_SHORT: Record<Gender, string> = {
+  male: 'ч',
+  female: 'ж',
+}
 
 export const MENU_STATUS_LABELS: Record<MenuStatus, string> = {
   draft: 'Чернетка',

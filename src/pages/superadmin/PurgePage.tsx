@@ -8,6 +8,7 @@ import { shiftIso } from '@/lib/dates'
 import { formatDate, toIsoDate } from '@/lib/format'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ErrorState } from '@/components/common/states'
+import { DELETE_WORD } from '@/components/common/ConfirmDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -23,7 +24,8 @@ import type { PurgePreview, PurgeResult, PurgeScope } from '@/types/database'
  */
 const MIN_AGE_DAYS = 31
 
-const CONFIRM_WORD = 'ВИДАЛИТИ'
+// Те саме слово перевіряє purge_data на сервері (p_confirm).
+const CONFIRM_WORD = DELETE_WORD
 
 interface ScopeInfo {
   id: PurgeScope

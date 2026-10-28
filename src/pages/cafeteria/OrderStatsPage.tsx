@@ -7,6 +7,7 @@ import { qk } from '@/lib/queryKeys'
 import { shiftIso } from '@/lib/dates'
 import { csvFilename } from '@/lib/csv'
 import { formatDate, formatDateWithWeekday, formatMoney, toIsoDate } from '@/lib/format'
+import { compareClassNames } from '@/lib/grades'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
@@ -107,7 +108,7 @@ export default function OrderStatsPage() {
     return {
       classes: [...map.entries()]
         .map(([id, value]) => ({ id, ...value }))
-        .sort((a, b) => a.name.localeCompare(b.name, 'uk')),
+        .sort((a, b) => compareClassNames(a.name, b.name)),
       byClass: map,
       dates: rows.map((row) => row.menu_date),
     }
