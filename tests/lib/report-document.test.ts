@@ -119,15 +119,23 @@ describe('organizationDocument', () => {
     expect(doc.sections[3].table.rows).toEqual([['Діти з числа ВПО', '1', '1']])
   })
 
-  it('пояснює перетин, якщо в когось кілька категорій', () => {
+  it('решта категорій дитини — у дужках, з поясненням', () => {
     const overlapping = buildOrganizationReport(
-      [row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'] })],
+      [
+        row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'] }),
+        row({ student_id: 'b', privileged: true, category_ids: ['big'] }),
+      ],
       [{ id: 'c1', name: '1-А', academic_year: '2026/2027', total_students: 20 }],
       [{ id: 'vpo', name: 'ВПО' }, { id: 'big', name: 'Багатодітні' }],
       { currentYear: '2026/2027' },
     )
     const model = organizationDocument(overlapping, { from: '2026-10-01', to: '2026-10-31', director: null, year: '2026' })
-    expect(model.sections[3].note).toMatch(/врахована в кожній з них/)
+    expect(model.sections[3].table.rows).toEqual([
+      ['Багатодітні', '1 (+1)', '1'],
+      ['ВПО', '1', '1'],
+    ])
+    expect(model.sections[3].table.total).toEqual(['Разом', '2', '2'])
+    expect(model.sections[3].note).toMatch(/лише за першою/)
     expect(doc.sections[3].note).toBeUndefined()
   })
 

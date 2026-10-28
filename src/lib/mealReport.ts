@@ -63,9 +63,12 @@ export interface CategoryRow {
   /** null — пільга без категорії (поставлена до появи категорій) */
   id: string | null
   name: string
+  /** діти, для яких це перша категорія — лише вони йдуть у підсумок */
   children: number
-  /** днів харчування — пільгових замовлень */
+  /** днів харчування цих дітей — пільгових замовлень */
   portions: number
+  /** діти, що мають цю категорію не першою: уже враховані в іншому рядку */
+  alsoChildren: number
 }
 
 export interface OrganizationReport {
@@ -86,12 +89,9 @@ export interface OrganizationReport {
     coveragePct: number | null
   }
   categories: CategoryRow[]
-  /**
-   * Різні діти й замовлення — кожне один раз. Дитина з кількома категоріями
-   * стоїть у кожному їхньому рядку, тож сума рядків може бути більшою.
-   */
+  /** сума рядків: кожна дитина й кожне замовлення — один раз */
   categoriesTotal: { children: number; portions: number }
-  /** чи є діти з кількома категоріями — тоді рядки перетинаються */
+  /** чи є діти з кількома категоріями — тоді в рядках з'являються «(+N)» */
   categoriesOverlap: boolean
 }
 
@@ -201,22 +201,29 @@ export function buildOrganizationReport(
   // --- Пільгові категорії ---------------------------------------------------
   const categoryName = new Map(categories.map((category) => [category.id, category.name]))
   const privilegedRows = rows.filter((row) => row.privileged)
-  // Дитина з кількома категоріями потрапляє в кожну з них.
-  const byCategory = new Map<string | null, MealRow[]>()
+  // Дитина рахується лише за ПЕРШОЮ категорією — інакше пільговиків у звіті
+  // стало б більше, ніж їх є. Решту її категорій показуємо окремо, «(+N)».
+  const byCategory = groupBy<string | null>(privilegedRows, (row) => row.category_ids[0] ?? null)
+  const alsoIn = new Map<string, Set<string>>()
   for (const row of privilegedRows) {
-    for (const id of row.category_ids.length > 0 ? row.category_ids : [null]) {
-      const list = byCategory.get(id)
-      if (list) list.push(row)
-      else byCategory.set(id, [row])
+    for (const id of row.category_ids.slice(1)) {
+      const set = alsoIn.get(id) ?? new Set<string>()
+      set.add(row.student_id)
+      alsoIn.set(id, set)
     }
   }
-  const categoryRows: CategoryRow[] = [...byCategory.entries()]
-    .map(([id, list]) => ({
-      id,
-      name: id === null ? UNCATEGORIZED_LABEL : (categoryName.get(id) ?? 'Невідома категорія'),
-      children: distinctStudents(list),
-      portions: list.length,
-    }))
+  const categoryIds = new Set<string | null>([...byCategory.keys(), ...alsoIn.keys()])
+  const categoryRows: CategoryRow[] = [...categoryIds]
+    .map((id) => {
+      const list = byCategory.get(id) ?? []
+      return {
+        id,
+        name: id === null ? UNCATEGORIZED_LABEL : (categoryName.get(id) ?? 'Невідома категорія'),
+        children: distinctStudents(list),
+        portions: list.length,
+        alsoChildren: id === null ? 0 : (alsoIn.get(id)?.size ?? 0),
+      }
+    })
     .sort((a, b) => {
       if (a.id === null) return 1
       if (b.id === null) return -1

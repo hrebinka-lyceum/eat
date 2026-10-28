@@ -93,6 +93,8 @@ describe('профіль учня', () => {
     expect(selected.getByText('Діти з числа ВПО')).toBeInTheDocument()
     expect(selected.getByText('Багатодітна родина')).toBeInTheDocument()
     expect(screen.getByLabelText('Пільгові категорії')).toHaveTextContent('Обрано: 2')
+    // У звітах рахується перша обрана — про це треба сказати прямо.
+    expect(screen.getByText(/за першою категорією — «Діти з числа ВПО»/)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: 'Зберегти' }))
     expect(updateStudentProfile).toHaveBeenCalledWith(

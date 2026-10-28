@@ -198,7 +198,7 @@ export function organizationDocument(
         ],
         rows: report.categories.map((row) => [
           row.name,
-          formatCount(row.children),
+          row.alsoChildren > 0 ? `${row.children} (+${row.alsoChildren})` : formatCount(row.children),
           formatCount(row.portions),
         ]),
         total: [
@@ -211,8 +211,9 @@ export function organizationDocument(
         report.categories.length === 0
           ? 'За період пільгового харчування не було.'
           : report.categoriesOverlap
-            ? 'Дитина з кількома пільговими категоріями врахована в кожній з них, ' +
-              'а в рядку «Разом» — один раз.'
+            ? 'Дитина з кількома пільговими категоріями врахована лише за першою з них. ' +
+              'У дужках — діти, які мають і цю категорію, але враховані в іншому рядку; ' +
+              'до «Разом» вони не додаються.'
             : undefined,
     },
     genderSection(report),

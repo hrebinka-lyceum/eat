@@ -136,33 +136,46 @@ describe('buildOrganizationReport', () => {
       { currentYear: YEAR },
     )
     expect(report.categories).toEqual([
-      { id: 'big', name: 'Багатодітні', children: 1, portions: 1 },
-      { id: 'vpo', name: 'ВПО', children: 1, portions: 2 },
-      { id: null, name: UNCATEGORIZED_LABEL, children: 1, portions: 1 },
+      { id: 'big', name: 'Багатодітні', children: 1, portions: 1, alsoChildren: 0 },
+      { id: 'vpo', name: 'ВПО', children: 1, portions: 2, alsoChildren: 0 },
+      { id: null, name: UNCATEGORIZED_LABEL, children: 1, portions: 1, alsoChildren: 0 },
     ])
     expect(report.categoriesTotal).toEqual({ children: 3, portions: 4 })
     expect(report.categoriesOverlap).toBe(false)
   })
 
-  // Дитина може мати кілька категорій: вона потрапляє в кожен їхній рядок,
-  // а в «Разом» — один раз, інакше підсумок дітей і днів був би завищений.
-  it('дитину з кількома категоріями рахує в кожній, а в підсумку — один раз', () => {
+  // Дитина з кількома категоріями — один пільговик: рахується лише за першою
+  // категорією, а решта видно окремо, «(+N)», і в підсумок не йде. Інакше
+  // пільговиків у звіті стало б більше, ніж їх є.
+  it('дитину з кількома категоріями рахує лише за першою', () => {
     const report = buildOrganizationReport(
       [
         row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'] }),
         row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'], menu_date: '2026-10-02' }),
-        row({ student_id: 'b', privileged: true, category_ids: ['vpo'] }),
+        row({ student_id: 'b', privileged: true, category_ids: ['big'] }),
       ],
       CLASSES,
       CATEGORIES,
       { currentYear: YEAR },
     )
     expect(report.categories).toEqual([
-      { id: 'big', name: 'Багатодітні', children: 1, portions: 2 },
-      { id: 'vpo', name: 'ВПО', children: 2, portions: 3 },
+      { id: 'big', name: 'Багатодітні', children: 1, portions: 1, alsoChildren: 1 },
+      { id: 'vpo', name: 'ВПО', children: 1, portions: 2, alsoChildren: 0 },
     ])
     expect(report.categoriesTotal).toEqual({ children: 2, portions: 3 })
+    const sum = report.categories.reduce((acc, r) => acc + r.children, 0)
+    expect(sum).toBe(report.categoriesTotal.children)
     expect(report.categoriesOverlap).toBe(true)
+  })
+
+  it('категорія, що стоїть лише другою, теж видна — з нулем і «(+N)»', () => {
+    const report = buildOrganizationReport(
+      [row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'] })],
+      CLASSES,
+      CATEGORIES,
+      { currentYear: YEAR },
+    )
+    expect(report.categories.find((r) => r.id === 'big')).toMatchObject({ children: 0, portions: 0, alsoChildren: 1 })
   })
 
   it('рахує замовлення на дні без вартості', () => {
