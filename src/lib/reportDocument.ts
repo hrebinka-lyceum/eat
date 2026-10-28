@@ -192,25 +192,28 @@ export function organizationDocument(
       heading: '4. Пільгові категорії',
       table: {
         columns: [
-          { header: 'Категорія', align: 'left', width: 2.6 },
-          { header: 'Кількість дітей', align: 'right', width: 1.1 },
-          { header: 'Днів харчування', align: 'right', width: 1.1 },
-          { header: 'Вартість, грн', align: 'right', width: 1.3 },
+          { header: 'Категорія', align: 'left', width: 3 },
+          { header: 'Кількість дітей', align: 'right', width: 1.2 },
+          { header: 'Днів харчування', align: 'right', width: 1.2 },
         ],
         rows: report.categories.map((row) => [
           row.name,
           formatCount(row.children),
           formatCount(row.portions),
-          formatAmount(row.cost),
         ]),
         total: [
           'Разом',
           formatCount(report.categoriesTotal.children),
           formatCount(report.categoriesTotal.portions),
-          formatAmount(report.categoriesTotal.cost),
         ],
       },
-      note: report.categories.length === 0 ? 'За період пільгового харчування не було.' : undefined,
+      note:
+        report.categories.length === 0
+          ? 'За період пільгового харчування не було.'
+          : report.categoriesOverlap
+            ? 'Дитина з кількома пільговими категоріями врахована в кожній з них, ' +
+              'а в рядку «Разом» — один раз.'
+            : undefined,
     },
     genderSection(report),
   ]

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { createStudent, privilegeFields, type PrivilegeChoice } from '@/api/students'
+import { createStudent, NO_PRIVILEGE, privilegeFields, type PrivilegeSelection } from '@/api/students'
 import { humanError } from '@/lib/errors'
 import { toIsoDate } from '@/lib/format'
 import { Button } from '@/components/ui/button'
@@ -16,10 +16,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ErrorState } from '@/components/common/states'
-import { GenderSelect, PrivilegeSelect } from '@/components/students/StudentFields'
+import { GenderSelect, PrivilegeMultiSelect } from '@/components/students/StudentFields'
 import type { Gender } from '@/types/database'
-
-const NO_PRIVILEGE: PrivilegeChoice = { kind: 'none' }
 
 /**
  * Додавання учня до реєстру харчування.
@@ -41,7 +39,7 @@ export function AddStudentDialog({
   const [lastName, setLastName] = useState('')
   const [firstName, setFirstName] = useState('')
   const [gender, setGender] = useState<Gender | null>(null)
-  const [privilege, setPrivilege] = useState<PrivilegeChoice>(NO_PRIVILEGE)
+  const [privilege, setPrivilege] = useState<PrivilegeSelection>(NO_PRIVILEGE)
   const [enrolledFrom, setEnrolledFrom] = useState(toIsoDate())
   const [error, setError] = useState<string | null>(null)
 
@@ -124,10 +122,10 @@ export function AddStudentDialog({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <GenderSelect id="student-gender" value={gender} onChange={setGender} />
-              <PrivilegeSelect
+              <PrivilegeMultiSelect
                 id="student-privilege"
                 value={privilege}
-                initial={NO_PRIVILEGE}
+                initialIds={[]}
                 onChange={setPrivilege}
               />
             </div>

@@ -84,38 +84,38 @@ export async function updateStudent(
 }
 
 /**
- * Пільга учня: «без пільги», категорія зі списку або пільга без категорії
- * (так позначені всі, кому її ставили до появи категорій).
+ * Пільга учня: кілька категорій зі списку. `uncategorized` — пільга без
+ * категорій, поставлена до їх появи; має сенс лише коли категорій немає.
  */
-export type PrivilegeChoice =
-  | { kind: 'none' }
-  | { kind: 'category'; categoryId: string }
-  | { kind: 'uncategorized' }
-
-export function privilegeChoiceOf(student: Pick<Student, 'is_privileged' | 'privilege_category_id'>): PrivilegeChoice {
-  if (!student.is_privileged) return { kind: 'none' }
-  return student.privilege_category_id
-    ? { kind: 'category', categoryId: student.privilege_category_id }
-    : { kind: 'uncategorized' }
+export interface PrivilegeSelection {
+  categoryIds: string[]
+  uncategorized: boolean
 }
 
-/** Поля пільги для запису. Категорія без is_privileged заборонена в базі. */
-export function privilegeFields(choice: PrivilegeChoice) {
-  switch (choice.kind) {
-    case 'none':
-      return { is_privileged: false, privilege_category_id: null }
-    case 'category':
-      return { is_privileged: true, privilege_category_id: choice.categoryId }
-    case 'uncategorized':
-      return { is_privileged: true, privilege_category_id: null }
-  }
+export const NO_PRIVILEGE: PrivilegeSelection = { categoryIds: [], uncategorized: false }
+
+export function privilegeSelectionOf(
+  student: Pick<Student, 'is_privileged' | 'privilege_category_ids'>,
+): PrivilegeSelection {
+  // ?? [] — поки міграції немає, колонки в рядку просто нема.
+  const categoryIds = student.privilege_category_ids ?? []
+  return { categoryIds, uncategorized: student.is_privileged && categoryIds.length === 0 }
+}
+
+/**
+ * Поля пільги для запису. Пільговик — той, у кого є хоч одна категорія
+ * (або стара пільга без категорії). Категорії без is_privileged база не пустить.
+ */
+export function privilegeFields(selection: PrivilegeSelection) {
+  const ids = [...new Set(selection.categoryIds)]
+  return { is_privileged: ids.length > 0 || selection.uncategorized, privilege_category_ids: ids }
 }
 
 export interface StudentProfilePatch {
   lastName: string
   firstName: string
   gender: Gender | null
-  privilege: PrivilegeChoice
+  privilege: PrivilegeSelection
 }
 
 /**

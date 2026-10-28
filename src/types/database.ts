@@ -101,8 +101,11 @@ export interface Database {
           is_privileged: boolean
           /** Стара довільна підстава пільги; в інтерфейсі більше не показується. */
           privilege_note: string | null
-          /** null — без пільги або пільга, поставлена до появи категорій */
-          privilege_category_id: string | null
+          /**
+           * Пільгові категорії учня (кілька). Порожньо при is_privileged —
+           * пільга, поставлена до появи категорій.
+           */
+          privilege_category_ids: string[]
           /** null — стать ще не вказано */
           gender: Gender | null
           is_active: boolean
@@ -118,7 +121,7 @@ export interface Database {
           profile_id?: string | null
           is_privileged?: boolean
           privilege_note?: string | null
-          privilege_category_id?: string | null
+          privilege_category_ids?: string[]
           gender?: Gender | null
           is_active?: boolean
           enrolled_from?: string
@@ -131,7 +134,7 @@ export interface Database {
           profile_id?: string | null
           is_privileged?: boolean
           privilege_note?: string | null
-          privilege_category_id?: string | null
+          privilege_category_ids?: string[]
           gender?: Gender | null
           is_active?: boolean
           enrolled_from?: string

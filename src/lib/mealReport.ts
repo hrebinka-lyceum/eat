@@ -16,7 +16,8 @@ export interface MealRow {
   cost: number
   unpriced: boolean
   gender: Gender | null
-  category_id: string | null
+  /** поточні категорії учня; порожньо в пільговика — пільга без категорії */
+  category_ids: string[]
 }
 
 export interface ClassRef {
@@ -63,8 +64,8 @@ export interface CategoryRow {
   id: string | null
   name: string
   children: number
+  /** днів харчування — пільгових замовлень */
   portions: number
-  cost: number
 }
 
 export interface OrganizationReport {
@@ -85,7 +86,13 @@ export interface OrganizationReport {
     coveragePct: number | null
   }
   categories: CategoryRow[]
-  categoriesTotal: { children: number; portions: number; cost: number }
+  /**
+   * Різні діти й замовлення — кожне один раз. Дитина з кількома категоріями
+   * стоїть у кожному їхньому рядку, тож сума рядків може бути більшою.
+   */
+  categoriesTotal: { children: number; portions: number }
+  /** чи є діти з кількома категоріями — тоді рядки перетинаються */
+  categoriesOverlap: boolean
 }
 
 export const UNCATEGORIZED_LABEL = 'Категорію не вказано'
@@ -194,14 +201,21 @@ export function buildOrganizationReport(
   // --- Пільгові категорії ---------------------------------------------------
   const categoryName = new Map(categories.map((category) => [category.id, category.name]))
   const privilegedRows = rows.filter((row) => row.privileged)
-  const byCategory = groupBy(privilegedRows, (row) => row.category_id)
+  // Дитина з кількома категоріями потрапляє в кожну з них.
+  const byCategory = new Map<string | null, MealRow[]>()
+  for (const row of privilegedRows) {
+    for (const id of row.category_ids.length > 0 ? row.category_ids : [null]) {
+      const list = byCategory.get(id)
+      if (list) list.push(row)
+      else byCategory.set(id, [row])
+    }
+  }
   const categoryRows: CategoryRow[] = [...byCategory.entries()]
     .map(([id, list]) => ({
       id,
       name: id === null ? UNCATEGORIZED_LABEL : (categoryName.get(id) ?? 'Невідома категорія'),
       children: distinctStudents(list),
       portions: list.length,
-      cost: sumCost(list),
     }))
     .sort((a, b) => {
       if (a.id === null) return 1
@@ -233,8 +247,8 @@ export function buildOrganizationReport(
     categoriesTotal: {
       children: distinctStudents(privilegedRows),
       portions: privilegedRows.length,
-      cost: sumCost(privilegedRows),
     },
+    categoriesOverlap: privilegedRows.some((row) => row.category_ids.length > 1),
   }
 }
 

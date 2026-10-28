@@ -73,7 +73,6 @@ export async function lateOrders(from: string, to: string): Promise<LateOrderRow
 
 export interface PrivilegedStudentRow extends Student {
   classes: { id: string; name: string } | null
-  privilege_categories: { id: string; name: string } | null
 }
 
 /** Усі, хто зараз має пільговий статус. */
@@ -81,7 +80,7 @@ export async function privilegedStudents(): Promise<PrivilegedStudentRow[]> {
   return unwrap(
     await supabase
       .from('students')
-      .select('*, classes(id, name), privilege_categories(id, name)')
+      .select('*, classes(id, name)')
       .eq('is_privileged', true)
       .eq('is_active', true)
       .order('last_name'),
@@ -119,7 +118,8 @@ export interface MealOrderRow {
   /** жоден компонент не мав ціни — день без вартості блюда */
   unpriced: boolean
   gender: Gender | null
-  category_id: string | null
+  /** поточні категорії учня; порожньо — пільга без категорії або без пільги */
+  category_ids: string[]
 }
 
 /**
@@ -136,7 +136,7 @@ export async function mealOrders(from: string, to: string): Promise<MealOrderRow
         .from('orders')
         .select(
           'menu_date, student_id, class_id, privileged_at_order, ' +
-            'order_items(price_at_order), students(gender, privilege_category_id)',
+            'order_items(price_at_order), students(gender, privilege_category_ids)',
         )
         .gte('menu_date', from)
         .lte('menu_date', to)
@@ -150,7 +150,7 @@ export async function mealOrders(from: string, to: string): Promise<MealOrderRow
     class_id: string
     privileged_at_order: boolean
     order_items: Array<{ price_at_order: number | null }>
-    students: { gender: Gender | null; privilege_category_id: string | null } | null
+    students: { gender: Gender | null; privilege_category_ids: string[] | null } | null
   }>
 
   return rows.map((row) => ({
@@ -161,6 +161,6 @@ export async function mealOrders(from: string, to: string): Promise<MealOrderRow
     cost: row.order_items.reduce((sum, item) => sum + (item.price_at_order ?? 0), 0),
     unpriced: row.order_items.every((item) => item.price_at_order === null),
     gender: row.students?.gender ?? null,
-    category_id: row.students?.privilege_category_id ?? null,
+    category_ids: row.students?.privilege_category_ids ?? [],
   }))
 }

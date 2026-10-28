@@ -60,10 +60,13 @@ export default function ClassRosterPage() {
     () => new Map((categoriesQuery.data ?? []).map((category) => [category.id, category.name])),
     [categoriesQuery.data],
   )
-  const privilegeLabel = (student: Student) =>
-    student.is_privileged
-      ? (student.privilege_category_id && categoryName.get(student.privilege_category_id)) || 'Пільга'
-      : ''
+  const privilegeLabel = (student: Student) => {
+    if (!student.is_privileged) return ''
+    const names = (student.privilege_category_ids ?? [])
+      .map((id) => categoryName.get(id))
+      .filter((name): name is string => Boolean(name))
+    return names.length > 0 ? names.join(', ') : 'Пільга'
+  }
 
   const studentsQuery = useQuery({
     queryKey: qk.students(myClass?.id ?? '', showInactive),

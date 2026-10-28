@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { privilegeLogFor, privilegedStudents, type PrivilegeLogRow } from '@/api/reports'
+import { listPrivilegeCategories } from '@/api/privilegeCategories'
+import { qk } from '@/lib/queryKeys'
 import { studentMonths } from '@/api/stats'
 import { formatMonthValue, monthValueBounds, toMonthValue } from '@/lib/dates'
 import { formatDate, fullName } from '@/lib/format'
@@ -31,6 +33,22 @@ export default function PrivilegedReport() {
     queryKey: ['privileged-students'],
     queryFn: privilegedStudents,
   })
+
+  const categoriesQuery = useQuery({
+    queryKey: qk.privilegeCategories(),
+    queryFn: listPrivilegeCategories,
+  })
+
+  // Категорій у дитини може бути кілька — показуємо всі через кому.
+  const categoriesOf = useMemo(() => {
+    const name = new Map((categoriesQuery.data ?? []).map((c) => [c.id, c.name]))
+    return (student: { privilege_category_ids?: string[] }) => {
+      const names = (student.privilege_category_ids ?? [])
+        .map((id) => name.get(id))
+        .filter((value): value is string => Boolean(value))
+      return names.length > 0 ? names.join(', ') : null
+    }
+  }, [categoriesQuery.data])
 
   const ids = useMemo(
     () => (studentsQuery.data ?? []).map((student) => student.id),
@@ -90,7 +108,7 @@ export default function PrivilegedReport() {
           columns={[
             { header: 'Учень', value: (r) => fullName(r.last_name, r.first_name) },
             { header: 'Клас', value: (r) => r.classes?.name ?? '' },
-            { header: 'Категорія', value: (r) => r.privilege_categories?.name ?? UNCATEGORIZED_LABEL },
+            { header: 'Категорії', value: (r) => categoriesOf(r) ?? UNCATEGORIZED_LABEL },
             {
               header: 'Статус поставив',
               value: (r) => lastLog.get(r.id)?.profiles?.full_name ?? '',
@@ -121,7 +139,7 @@ export default function PrivilegedReport() {
               <TableRow>
                 <TableHead>Учень</TableHead>
                 <TableHead>Клас</TableHead>
-                <TableHead>Категорія</TableHead>
+                <TableHead>Категорії</TableHead>
                 <TableHead>Статус поставив</TableHead>
                 <TableHead className="text-right">Днів за місяць</TableHead>
               </TableRow>
@@ -136,7 +154,7 @@ export default function PrivilegedReport() {
                     </TableCell>
                     <TableCell>{student.classes?.name ?? '—'}</TableCell>
                     <TableCell className="max-w-72">
-                      {student.privilege_categories?.name ?? (
+                      {categoriesOf(student) ?? (
                         <span className="text-muted-foreground">{UNCATEGORIZED_LABEL}</span>
                       )}
                     </TableCell>

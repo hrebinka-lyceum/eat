@@ -1,8 +1,18 @@
+import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { ChevronDown, X } from 'lucide-react'
 import { listPrivilegeCategories } from '@/api/privilegeCategories'
-import type { PrivilegeChoice } from '@/api/students'
+import type { PrivilegeSelection } from '@/api/students'
 import { qk } from '@/lib/queryKeys'
 import { GENDER_LABELS } from '@/lib/format'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Label } from '@/components/ui/label'
 import {
   Select,
@@ -12,9 +22,6 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import type { Gender } from '@/types/database'
-
-const NONE = 'none'
-const UNCATEGORIZED = 'uncategorized'
 
 export function GenderSelect({
   id,
@@ -44,68 +51,121 @@ export function GenderSelect({
   )
 }
 
-function choiceToValue(choice: PrivilegeChoice): string {
-  if (choice.kind === 'category') return choice.categoryId
-  return choice.kind === 'none' ? NONE : UNCATEGORIZED
-}
-
-function valueToChoice(value: string): PrivilegeChoice {
-  if (value === NONE) return { kind: 'none' }
-  if (value === UNCATEGORIZED) return { kind: 'uncategorized' }
-  return { kind: 'category', categoryId: value }
-}
-
 /**
- * Пільгова категорія зі списку, який веде адміністрація.
+ * Пільгові категорії учня — кілька зі списку, який веде адміністрація.
  *
- * Вимкнені категорії не пропонуються, але та, що вже стоїть в учня,
- * лишається видимою — інакше поле показувало б порожнечу. «Пільга без
- * категорії» з'являється лише в тих, кому пільгу ставили до появи категорій.
+ * Випадний список з галочками не закривається після вибору, щоб можна було
+ * відмітити кілька поспіль; обрані показуються під ним «чипами» з хрестиком.
+ * Вимкнені категорії не пропонуються, але ті, що вже стоять в учня, лишаються
+ * видимими — інакше вони зникли б з картки мовчки. «Пільга без категорії» —
+ * лише в тих, кому пільгу ставили до появи категорій; додали категорію — вона
+ * зникає сама.
  */
-export function PrivilegeSelect({
+export function PrivilegeMultiSelect({
   id,
   value,
-  initial,
+  initialIds,
   onChange,
 }: {
   id: string
-  value: PrivilegeChoice
-  /** що стояло в учня до редагування */
-  initial: PrivilegeChoice
-  onChange: (value: PrivilegeChoice) => void
+  value: PrivilegeSelection
+  /** категорії, що стояли в учня до редагування */
+  initialIds: string[]
+  onChange: (value: PrivilegeSelection) => void
 }) {
   const categoriesQuery = useQuery({
     queryKey: qk.privilegeCategories(),
     queryFn: listPrivilegeCategories,
   })
-  const categories = categoriesQuery.data ?? []
-  const initialId = initial.kind === 'category' ? initial.categoryId : null
-  const offered = categories.filter((category) => category.is_active || category.id === initialId)
+  const categories = useMemo(() => categoriesQuery.data ?? [], [categoriesQuery.data])
+  const nameOf = useMemo(() => new Map(categories.map((c) => [c.id, c])), [categories])
+  const offered = categories.filter(
+    (category) => category.is_active || initialIds.includes(category.id) || value.categoryIds.includes(category.id),
+  )
+  const selected = new Set(value.categoryIds)
+
+  const toggle = (categoryId: string, checked: boolean) =>
+    onChange({
+      categoryIds: checked
+        ? [...value.categoryIds, categoryId]
+        : value.categoryIds.filter((other) => other !== categoryId),
+      uncategorized: false,
+    })
+
+  const summary =
+    value.categoryIds.length > 0
+      ? `Обрано: ${value.categoryIds.length}`
+      : value.uncategorized
+        ? 'Пільга без категорії'
+        : 'Без пільги'
 
   return (
     <div className="space-y-2">
-      <Label htmlFor={id}>Пільгова категорія</Label>
-      <Select value={choiceToValue(value)} onValueChange={(next) => onChange(valueToChoice(next))}>
-        <SelectTrigger id={id} className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={NONE}>Без пільги</SelectItem>
+      <Label htmlFor={id}>Пільгові категорії</Label>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <Button id={id} variant="outline" className="w-full justify-between font-normal">
+            {summary}
+            <ChevronDown className="size-4 opacity-50" aria-hidden />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-(--radix-dropdown-menu-trigger-width) min-w-56">
           {offered.map((category) => (
-            <SelectItem key={category.id} value={category.id}>
+            <DropdownMenuCheckboxItem
+              key={category.id}
+              checked={selected.has(category.id)}
+              onCheckedChange={(checked) => toggle(category.id, checked === true)}
+              // Не закривати після вибору: категорій часто кілька.
+              onSelect={(event) => event.preventDefault()}
+            >
               {category.name}
               {category.is_active ? '' : ' (вимкнена)'}
-            </SelectItem>
+            </DropdownMenuCheckboxItem>
           ))}
-          {initial.kind === 'uncategorized' ? (
-            <SelectItem value={UNCATEGORIZED}>Пільга без категорії</SelectItem>
+          {categoriesQuery.data && offered.length === 0 ? (
+            <p className="px-2 py-1.5 text-sm text-muted-foreground">
+              Категорій ще немає — їх додає адміністрація в «Налаштуваннях школи».
+            </p>
           ) : null}
-        </SelectContent>
-      </Select>
-      {categoriesQuery.data && offered.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
-          Категорій ще немає — їх додає адміністрація в «Налаштуваннях школи».
-        </p>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      {value.categoryIds.length > 0 || value.uncategorized ? (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Обрані пільгові категорії">
+          {value.categoryIds.map((categoryId) => {
+            const name = nameOf.get(categoryId)?.name ?? 'Невідома категорія'
+            return (
+              <li key={categoryId}>
+                <Badge variant="secondary" className="gap-1 pr-1">
+                  {name}
+                  <button
+                    type="button"
+                    className="rounded-sm p-0.5 hover:bg-muted-foreground/20"
+                    aria-label={`Прибрати «${name}»`}
+                    onClick={() => toggle(categoryId, false)}
+                  >
+                    <X className="size-3" aria-hidden />
+                  </button>
+                </Badge>
+              </li>
+            )
+          })}
+          {value.categoryIds.length === 0 && value.uncategorized ? (
+            <li>
+              <Badge variant="secondary" className="gap-1 pr-1">
+                Пільга без категорії
+                <button
+                  type="button"
+                  className="rounded-sm p-0.5 hover:bg-muted-foreground/20"
+                  aria-label="Зняти пільгу"
+                  onClick={() => onChange({ categoryIds: [], uncategorized: false })}
+                >
+                  <X className="size-3" aria-hidden />
+                </button>
+              </Badge>
+            </li>
+          ) : null}
+        </ul>
       ) : null}
     </div>
   )

@@ -54,14 +54,14 @@ const row = (over: Partial<MealRow>): MealRow => ({
   cost: 58.4,
   unpriced: false,
   gender: 'female',
-  category_id: null,
+  category_ids: [],
   ...over,
 })
 
 const report = buildOrganizationReport(
   [
     row({ student_id: 'a' }),
-    row({ student_id: 'b', class_id: 'c7', gender: 'male', privileged: true, category_id: 'vpo' }),
+    row({ student_id: 'b', class_id: 'c7', gender: 'male', privileged: true, category_ids: ['vpo'] }),
   ],
   [
     { id: 'c1', name: '1-А', academic_year: '2026/2027', total_students: 20 },
@@ -110,6 +110,25 @@ describe('organizationDocument', () => {
       ['Загальна вартість харчування, грн', '116,80'],
       ['Середня вартість на одну дитину, грн', '58,40'],
     ])
+  })
+
+  it('пільгові категорії: діти й дні, без вартості — категорії перетинаються', () => {
+    expect(doc.sections[3].table.columns.map((c) => c.header)).toEqual([
+      'Категорія', 'Кількість дітей', 'Днів харчування',
+    ])
+    expect(doc.sections[3].table.rows).toEqual([['Діти з числа ВПО', '1', '1']])
+  })
+
+  it('пояснює перетин, якщо в когось кілька категорій', () => {
+    const overlapping = buildOrganizationReport(
+      [row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'] })],
+      [{ id: 'c1', name: '1-А', academic_year: '2026/2027', total_students: 20 }],
+      [{ id: 'vpo', name: 'ВПО' }, { id: 'big', name: 'Багатодітні' }],
+      { currentYear: '2026/2027' },
+    )
+    const model = organizationDocument(overlapping, { from: '2026-10-01', to: '2026-10-31', director: null, year: '2026' })
+    expect(model.sections[3].note).toMatch(/врахована в кожній з них/)
+    expect(doc.sections[3].note).toBeUndefined()
   })
 
   it('колонку «Стать не вказано» показує лише тоді, коли такі діти є', () => {

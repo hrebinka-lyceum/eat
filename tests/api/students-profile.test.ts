@@ -19,15 +19,29 @@ const { deleteStudent, privilegeFields, updateStudentProfile } = await import('@
 describe('пільга в записі', () => {
   // У базі стоїть check: категорія без is_privileged заборонена. Тому обидва
   // поля завжди пишуться разом.
-  it('категорія ставить і is_privileged', () => {
-    expect(privilegeFields({ kind: 'category', categoryId: 'vpo' })).toEqual({
+  it('хоч одна категорія ставить і is_privileged', () => {
+    expect(privilegeFields({ categoryIds: ['vpo', 'big'], uncategorized: false })).toEqual({
       is_privileged: true,
-      privilege_category_id: 'vpo',
+      privilege_category_ids: ['vpo', 'big'],
     })
   })
 
-  it('«без пільги» знімає і категорію', () => {
-    expect(privilegeFields({ kind: 'none' })).toEqual({ is_privileged: false, privilege_category_id: null })
+  it('без категорій — без пільги', () => {
+    expect(privilegeFields({ categoryIds: [], uncategorized: false })).toEqual({
+      is_privileged: false,
+      privilege_category_ids: [],
+    })
+  })
+
+  it('стара пільга без категорії лишається пільгою', () => {
+    expect(privilegeFields({ categoryIds: [], uncategorized: true })).toEqual({
+      is_privileged: true,
+      privilege_category_ids: [],
+    })
+  })
+
+  it('однакову категорію двічі не пише', () => {
+    expect(privilegeFields({ categoryIds: ['vpo', 'vpo'], uncategorized: false }).privilege_category_ids).toEqual(['vpo'])
   })
 
   it('профіль пишеться одним update з обрізаними пробілами', async () => {
@@ -35,14 +49,14 @@ describe('пільга в записі', () => {
       lastName: '  Бойко ',
       firstName: 'Анна ',
       gender: 'female',
-      privilege: { kind: 'category', categoryId: 'vpo' },
+      privilege: { categoryIds: ['vpo'], uncategorized: false },
     })
     expect(update).toHaveBeenCalledWith({
       last_name: 'Бойко',
       first_name: 'Анна',
       gender: 'female',
       is_privileged: true,
-      privilege_category_id: 'vpo',
+      privilege_category_ids: ['vpo'],
     })
   })
 })

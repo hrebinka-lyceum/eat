@@ -37,7 +37,7 @@ const order = (student: string, klass: string, privileged = false) => ({
   cost: 58.4,
   unpriced: false,
   gender: 'female' as const,
-  category_id: privileged ? 'vpo' : null,
+  category_ids: privileged ? ['vpo'] : [],
 })
 
 beforeEach(() => {

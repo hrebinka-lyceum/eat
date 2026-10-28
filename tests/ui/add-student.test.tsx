@@ -40,13 +40,14 @@ describe('додавання учня', () => {
     expect(createStudent).not.toHaveBeenCalled()
   })
 
-  it('пише стать і пільгову категорію разом із карткою', async () => {
+  it('пише стать і пільгові категорії разом із карткою', async () => {
     renderWithProviders(<AddStudentDialog open onOpenChange={() => {}} classId="c1" />, { role: 'teacher' })
     await fillName()
     await userEvent.click(screen.getByLabelText('Стать'))
     await userEvent.click(await screen.findByRole('option', { name: 'Жіноча' }))
-    await userEvent.click(screen.getByLabelText('Пільгова категорія'))
-    await userEvent.click(await screen.findByRole('option', { name: 'Діти з числа ВПО' }))
+    await userEvent.click(screen.getByLabelText('Пільгові категорії'))
+    await userEvent.click(await screen.findByRole('menuitemcheckbox', { name: 'Діти з числа ВПО' }))
+    await userEvent.keyboard('{Escape}')
     await userEvent.click(screen.getByRole('button', { name: 'Додати' }))
 
     expect(createStudent).toHaveBeenCalledWith(
@@ -56,7 +57,7 @@ describe('додавання учня', () => {
         first_name: 'Злата',
         gender: 'female',
         is_privileged: true,
-        privilege_category_id: 'vpo',
+        privilege_category_ids: ['vpo'],
       }),
     )
   })

@@ -3,9 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
   getPrivilegeLog,
-  privilegeChoiceOf,
+  privilegeSelectionOf,
   updateStudentProfile,
-  type PrivilegeChoice,
+  type PrivilegeSelection,
 } from '@/api/students'
 import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ErrorState } from '@/components/common/states'
-import { GenderSelect, PrivilegeSelect } from './StudentFields'
+import { GenderSelect, PrivilegeMultiSelect } from './StudentFields'
 import type { Gender, Student } from '@/types/database'
 
 /**
@@ -39,14 +39,14 @@ export function StudentProfileForm({
   const [lastName, setLastName] = useState(student.last_name)
   const [firstName, setFirstName] = useState(student.first_name)
   const [gender, setGender] = useState<Gender | null>(student.gender)
-  const [privilege, setPrivilege] = useState<PrivilegeChoice>(privilegeChoiceOf(student))
+  const [privilege, setPrivilege] = useState<PrivilegeSelection>(privilegeSelectionOf(student))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     setLastName(student.last_name)
     setFirstName(student.first_name)
     setGender(student.gender)
-    setPrivilege(privilegeChoiceOf(student))
+    setPrivilege(privilegeSelectionOf(student))
     setError(null)
   }, [student])
 
@@ -90,10 +90,10 @@ export function StudentProfileForm({
           <Input id={`${idPrefix}-first`} value={firstName} onChange={(e) => setFirstName(e.target.value)} />
         </div>
         <GenderSelect id={`${idPrefix}-gender`} value={gender} onChange={setGender} />
-        <PrivilegeSelect
+        <PrivilegeMultiSelect
           id={`${idPrefix}-privilege`}
           value={privilege}
-          initial={privilegeChoiceOf(student)}
+          initialIds={student.privilege_category_ids ?? []}
           onChange={setPrivilege}
         />
       </div>

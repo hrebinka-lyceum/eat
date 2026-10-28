@@ -27,7 +27,7 @@ const student = (over: Partial<Student> = {}): Student => ({
   profile_id: null,
   is_privileged: false,
   privilege_note: null,
-  privilege_category_id: null,
+  privilege_category_ids: [],
   gender: null,
   is_active: true,
   enrolled_from: '2026-09-01',
@@ -41,71 +41,112 @@ beforeEach(() => {
   getPrivilegeLog.mockResolvedValue([])
   updateStudentProfile.mockResolvedValue(student())
   listPrivilegeCategories.mockResolvedValue([
+    { id: 'big', name: 'Багатодітна родина', is_active: true, created_at: '' },
     { id: 'vpo', name: 'Діти з числа ВПО', is_active: true, created_at: '' },
     { id: 'old', name: 'Стара категорія', is_active: false, created_at: '' },
   ])
 })
 
-async function choose(label: string, option: string) {
-  await userEvent.click(screen.getByLabelText(label))
-  await userEvent.click(await screen.findByRole('option', { name: option }))
+function form(over: Partial<Student> = {}) {
+  return renderWithProviders(<StudentProfileForm student={student(over)} idPrefix="t" unknownAuthor="—" />, {
+    role: 'teacher',
+  })
 }
 
+async function openCategories() {
+  await userEvent.click(screen.getByLabelText('Пільгові категорії'))
+  return screen.findByRole('menu')
+}
+
+const chips = () => screen.queryByRole('list', { name: 'Обрані пільгові категорії' })
+
 describe('профіль учня', () => {
-  it('зберігає ім’я, стать і категорію одним записом', async () => {
-    renderWithProviders(<StudentProfileForm student={student()} idPrefix="t" unknownAuthor="—" />, {
-      role: 'teacher',
-    })
+  it('зберігає ім’я, стать і категорії одним записом', async () => {
+    form()
 
     const last = screen.getByLabelText('Прізвище')
     await userEvent.clear(last)
     await userEvent.type(last, 'Бойко-Ткач')
-    await choose('Стать', 'Жіноча')
-    await choose('Пільгова категорія', 'Діти з числа ВПО')
+    await userEvent.click(screen.getByLabelText('Стать'))
+    await userEvent.click(await screen.findByRole('option', { name: 'Жіноча' }))
     await userEvent.click(screen.getByRole('button', { name: 'Зберегти' }))
 
     expect(updateStudentProfile).toHaveBeenCalledWith('s1', {
       lastName: 'Бойко-Ткач',
       firstName: 'Анна',
       gender: 'female',
-      privilege: { kind: 'category', categoryId: 'vpo' },
+      privilege: { categoryIds: [], uncategorized: false },
     })
   })
 
-  // Вимкнена категорія не пропонується новим учням, але в того, кому вона вже
-  // стоїть, поле не може показувати порожнечу.
-  it('вимкнену категорію пропонує лише тому, в кого вона вже стоїть', async () => {
-    renderWithProviders(<StudentProfileForm student={student()} idPrefix="t" unknownAuthor="—" />)
-    await userEvent.click(screen.getByLabelText('Пільгова категорія'))
-    const list = await screen.findByRole('listbox')
-    expect(within(list).queryByText(/Стара категорія/)).not.toBeInTheDocument()
-  })
+  // Дитина буває одночасно з багатодітної родини і ВПО — список не
+  // закривається після вибору, обидві видно «чипами».
+  it('дає обрати кілька категорій і показує їх під списком', async () => {
+    form()
 
-  it('стоїть вимкнена категорія — її видно з позначкою', async () => {
-    renderWithProviders(
-      <StudentProfileForm
-        student={student({ is_privileged: true, privilege_category_id: 'old' })}
-        idPrefix="t"
-        unknownAuthor="—"
-      />,
-    )
-    expect(await screen.findByText('Стара категорія (вимкнена)')).toBeInTheDocument()
-  })
+    const menu = await openCategories()
+    await userEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Діти з числа ВПО' }))
+    await userEvent.click(within(menu).getByRole('menuitemcheckbox', { name: 'Багатодітна родина' }))
+    await userEvent.keyboard('{Escape}')
 
-  it('пільга, поставлена до появи категорій, не губиться', async () => {
-    renderWithProviders(
-      <StudentProfileForm student={student({ is_privileged: true })} idPrefix="t" unknownAuthor="—" />,
-    )
-    expect(await screen.findByText('Пільга без категорії')).toBeInTheDocument()
+    const selected = within(chips()!)
+    expect(selected.getByText('Діти з числа ВПО')).toBeInTheDocument()
+    expect(selected.getByText('Багатодітна родина')).toBeInTheDocument()
+    expect(screen.getByLabelText('Пільгові категорії')).toHaveTextContent('Обрано: 2')
+
     await userEvent.click(screen.getByRole('button', { name: 'Зберегти' }))
     expect(updateStudentProfile).toHaveBeenCalledWith(
       's1',
-      expect.objectContaining({ privilege: { kind: 'uncategorized' } }),
+      expect.objectContaining({ privilege: { categoryIds: ['vpo', 'big'], uncategorized: false } }),
+    )
+  })
+
+  it('обрану категорію можна прибрати хрестиком', async () => {
+    form({ is_privileged: true, privilege_category_ids: ['vpo', 'big'] })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Прибрати «Діти з числа ВПО»' }))
+    expect(within(chips()!).queryByText('Діти з числа ВПО')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Зберегти' }))
+    expect(updateStudentProfile).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ privilege: { categoryIds: ['big'], uncategorized: false } }),
+    )
+  })
+
+  it('прибрали всі категорії — пільги немає', async () => {
+    form({ is_privileged: true, privilege_category_ids: ['vpo'] })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Прибрати «Діти з числа ВПО»' }))
+    expect(chips()).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Пільгові категорії')).toHaveTextContent('Без пільги')
+  })
+
+  it('вимкнену категорію пропонує лише тому, в кого вона вже стоїть', async () => {
+    form()
+    const menu = await openCategories()
+    expect(within(menu).queryByText(/Стара категорія/)).not.toBeInTheDocument()
+  })
+
+  it('стоїть вимкнена категорія — її видно', async () => {
+    form({ is_privileged: true, privilege_category_ids: ['old'] })
+    expect(await within(await screen.findByRole('list', { name: 'Обрані пільгові категорії' })).findByText('Стара категорія')).toBeInTheDocument()
+    const menu = await openCategories()
+    expect(within(menu).getByRole('menuitemcheckbox', { name: 'Стара категорія (вимкнена)' })).toBeInTheDocument()
+  })
+
+  it('пільга, поставлена до появи категорій, не губиться', async () => {
+    form({ is_privileged: true })
+    expect(within(chips()!).getByText('Пільга без категорії')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Зберегти' }))
+    expect(updateStudentProfile).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ privilege: { categoryIds: [], uncategorized: true } }),
     )
   })
 
   it('порожнє прізвище не зберігає', async () => {
-    renderWithProviders(<StudentProfileForm student={student()} idPrefix="t" unknownAuthor="—" />)
+    form()
     await userEvent.clear(screen.getByLabelText('Прізвище'))
     await userEvent.click(screen.getByRole('button', { name: 'Зберегти' }))
     expect(await screen.findByText(/не можуть бути порожніми/)).toBeInTheDocument()

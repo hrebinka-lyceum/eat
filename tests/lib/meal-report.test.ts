@@ -28,7 +28,7 @@ const row = (over: Partial<MealRow>): MealRow => ({
   cost: 50,
   unpriced: false,
   gender: 'female',
-  category_id: null,
+  category_ids: [],
   ...over,
 })
 
@@ -81,8 +81,8 @@ describe('buildOrganizationReport', () => {
     const report = buildOrganizationReport(
       [
         row({ student_id: 'a', class_id: 'c1' }),
-        row({ student_id: 'b', class_id: 'c1', privileged: true, category_id: 'vpo' }),
-        row({ student_id: 'b', class_id: 'c1', privileged: true, category_id: 'vpo', menu_date: '2026-10-02' }),
+        row({ student_id: 'b', class_id: 'c1', privileged: true, category_ids: ['vpo'] }),
+        row({ student_id: 'b', class_id: 'c1', privileged: true, category_ids: ['vpo'], menu_date: '2026-10-02' }),
       ],
       CLASSES,
       CATEGORIES,
@@ -125,10 +125,10 @@ describe('buildOrganizationReport', () => {
   it('пільгові категорії: діти, дні й вартість; без категорії — в кінці', () => {
     const report = buildOrganizationReport(
       [
-        row({ student_id: 'a', privileged: true, category_id: 'vpo', cost: 50 }),
-        row({ student_id: 'a', privileged: true, category_id: 'vpo', cost: 50, menu_date: '2026-10-02' }),
-        row({ student_id: 'b', privileged: true, category_id: 'big', cost: 50 }),
-        row({ student_id: 'c', privileged: true, category_id: null, cost: 50 }),
+        row({ student_id: 'a', privileged: true, category_ids: ['vpo'], cost: 50 }),
+        row({ student_id: 'a', privileged: true, category_ids: ['vpo'], cost: 50, menu_date: '2026-10-02' }),
+        row({ student_id: 'b', privileged: true, category_ids: ['big'], cost: 50 }),
+        row({ student_id: 'c', privileged: true, category_ids: [], cost: 50 }),
         row({ student_id: 'd', privileged: false, cost: 50 }),
       ],
       CLASSES,
@@ -136,11 +136,33 @@ describe('buildOrganizationReport', () => {
       { currentYear: YEAR },
     )
     expect(report.categories).toEqual([
-      { id: 'big', name: 'Багатодітні', children: 1, portions: 1, cost: 50 },
-      { id: 'vpo', name: 'ВПО', children: 1, portions: 2, cost: 100 },
-      { id: null, name: UNCATEGORIZED_LABEL, children: 1, portions: 1, cost: 50 },
+      { id: 'big', name: 'Багатодітні', children: 1, portions: 1 },
+      { id: 'vpo', name: 'ВПО', children: 1, portions: 2 },
+      { id: null, name: UNCATEGORIZED_LABEL, children: 1, portions: 1 },
     ])
-    expect(report.categoriesTotal).toEqual({ children: 3, portions: 4, cost: 200 })
+    expect(report.categoriesTotal).toEqual({ children: 3, portions: 4 })
+    expect(report.categoriesOverlap).toBe(false)
+  })
+
+  // Дитина може мати кілька категорій: вона потрапляє в кожен їхній рядок,
+  // а в «Разом» — один раз, інакше підсумок дітей і днів був би завищений.
+  it('дитину з кількома категоріями рахує в кожній, а в підсумку — один раз', () => {
+    const report = buildOrganizationReport(
+      [
+        row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'] }),
+        row({ student_id: 'a', privileged: true, category_ids: ['vpo', 'big'], menu_date: '2026-10-02' }),
+        row({ student_id: 'b', privileged: true, category_ids: ['vpo'] }),
+      ],
+      CLASSES,
+      CATEGORIES,
+      { currentYear: YEAR },
+    )
+    expect(report.categories).toEqual([
+      { id: 'big', name: 'Багатодітні', children: 1, portions: 2 },
+      { id: 'vpo', name: 'ВПО', children: 2, portions: 3 },
+    ])
+    expect(report.categoriesTotal).toEqual({ children: 2, portions: 3 })
+    expect(report.categoriesOverlap).toBe(true)
   })
 
   it('рахує замовлення на дні без вартості', () => {

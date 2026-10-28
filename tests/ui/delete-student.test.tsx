@@ -21,7 +21,7 @@ const student: Student = {
   profile_id: 'p1',
   is_privileged: false,
   privilege_note: null,
-  privilege_category_id: null,
+  privilege_category_ids: [],
   gender: 'female',
   is_active: true,
   enrolled_from: '2026-09-01',
