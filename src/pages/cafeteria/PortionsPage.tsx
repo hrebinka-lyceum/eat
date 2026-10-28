@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Printer } from 'lucide-react'
-import { classCoverage, costRows, dailyTotals, ordersByDish } from '@/api/stats'
+import { classCoverage, costRows, dailyTotals, orderGenders, ordersByDish } from '@/api/stats'
 import { useCanSeeCost } from '@/auth/permissions'
 import { qk } from '@/lib/queryKeys'
 import { formatDateWithWeekday, formatMoney, toIsoDate } from '@/lib/format'
 import { compareClassNames } from '@/lib/grades'
+import { sumGender, tallyGender } from '@/lib/mealReport'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
@@ -50,6 +51,12 @@ export default function PortionsPage() {
     placeholderData: (previous) => previous,
   })
 
+  const genderQuery = useQuery({
+    queryKey: qk.orderGenders(date, date),
+    queryFn: () => orderGenders(date, date),
+    placeholderData: (previous) => previous,
+  })
+
   const costQuery = useQuery({
     queryKey: qk.costRows(date, date),
     queryFn: () => costRows(date, date),
@@ -82,17 +89,27 @@ export default function PortionsPage() {
     [coverageQuery.data],
   )
 
+  // За один день замовлення = діти: одне на дитину.
+  const genderByClass = useMemo(
+    () => tallyGender(genderQuery.data ?? [], (row) => row.class_id),
+    [genderQuery.data],
+  )
+  const dayGender = sumGender(genderByClass.values())
+  const withUnknown = dayGender.unknown > 0
+  const genderOf = (classId: string) =>
+    genderByClass.get(classId) ?? { male: 0, female: 0, unknown: 0, total: 0 }
+
   const dayCost = dishes.reduce((sum, dish) => sum + (dish.total_cost ?? 0), 0)
   const anyCost = dishes.some((dish) => dish.total_cost !== null)
 
   const loading = dishesQuery.isPending || totalsQuery.isPending
-  const error = dishesQuery.error ?? totalsQuery.error ?? coverageQuery.error
+  const error = dishesQuery.error ?? totalsQuery.error ?? coverageQuery.error ?? genderQuery.error
 
   return (
     <div className="space-y-6" data-print="sheet">
       <PageHeader
         title="Порції на день"
-        description="Скільки яких компонентів готувати. Пільгові та пізні замовлення — окремими колонками."
+        description="Скільки яких компонентів готувати. Пільгові та пізні замовлення, хлопці й дівчата — окремо."
         actions={
           <>
             <ExportButton
@@ -128,7 +145,7 @@ export default function PortionsPage() {
 
       {!loading && !error ? (
         <>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className={`grid gap-3 sm:grid-cols-2 ${canSeeCost ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
             <StatTile
               label="Порцій блюда"
               value={totals?.orders_total ?? 0}
@@ -139,6 +156,11 @@ export default function PortionsPage() {
               label="З них пільгових"
               value={totals?.orders_privileged ?? 0}
               hint={totals ? `звичайних ${totals.orders_regular}` : undefined}
+            />
+            <StatTile
+              label="Хлопців / дівчат"
+              value={`${dayGender.male} / ${dayGender.female}`}
+              hint={withUnknown ? `стать не вказано: ${dayGender.unknown}` : 'серед тих, хто замовив'}
             />
             <StatTile
               label="Після дедлайну"
@@ -204,6 +226,9 @@ export default function PortionsPage() {
                       { header: 'Дата', value: () => date },
                       { header: 'Клас', value: (c) => c.class_name },
                       { header: 'Замовили', value: (c) => c.students_ordered },
+                      { header: 'Хлопців', value: (c) => genderOf(c.class_id).male },
+                      { header: 'Дівчат', value: (c) => genderOf(c.class_id).female },
+                      { header: 'Стать не вказано', value: (c) => genderOf(c.class_id).unknown },
                       { header: 'У реєстрі', value: (c) => c.students_registered },
                       ...(canSeeCost
                         ? [
@@ -223,8 +248,11 @@ export default function PortionsPage() {
                     <TableRow>
                       <TableHead>Клас</TableHead>
                       <TableHead className="text-right">Замовили</TableHead>
+                      <TableHead className="text-right">Хлопців</TableHead>
+                      <TableHead className="text-right">Дівчат</TableHead>
+                      {withUnknown ? <TableHead className="text-right">Стать не вказано</TableHead> : null}
                       <TableHead className="text-right">У реєстрі</TableHead>
-  
+                      {canSeeCost ? <TableHead className="text-right">Вартість</TableHead> : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -234,6 +262,13 @@ export default function PortionsPage() {
                         <TableCell className="text-right text-base font-semibold tabular-nums">
                           {row.students_ordered}
                         </TableCell>
+                        <TableCell className="text-right tabular-nums">{genderOf(row.class_id).male}</TableCell>
+                        <TableCell className="text-right tabular-nums">{genderOf(row.class_id).female}</TableCell>
+                        {withUnknown ? (
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {genderOf(row.class_id).unknown || '—'}
+                          </TableCell>
+                        ) : null}
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {row.students_registered}
                         </TableCell>

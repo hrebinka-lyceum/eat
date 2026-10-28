@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   buildGenderBreakdown,
   buildOrganizationReport,
+  sumGender,
+  tallyGender,
   UNCATEGORIZED_LABEL,
   type ClassRef,
   type MealRow,
@@ -215,5 +217,20 @@ describe('buildGenderBreakdown', () => {
     expect(breakdown.classes[0]).toMatchObject({ name: '1-А', counts: { male: 1, female: 1, unknown: 0, total: 2 } })
     expect(breakdown.levels.map((l) => l.counts.total)).toEqual([2, 1, 0])
     expect(breakdown.total).toEqual({ male: 1, female: 1, unknown: 1, total: 3 })
+  })
+})
+
+describe('tallyGender', () => {
+  it('рахує замовлення хлопців і дівчат за ключем', () => {
+    const rows = [
+      { class_id: 'c1', gender: 'male' as const },
+      { class_id: 'c1', gender: 'female' as const },
+      { class_id: 'c1', gender: 'female' as const },
+      { class_id: 'c2', gender: null },
+    ]
+    const byClass = tallyGender(rows, (r) => r.class_id)
+    expect(byClass.get('c1')).toEqual({ male: 1, female: 2, unknown: 0, total: 3 })
+    expect(byClass.get('c2')).toEqual({ male: 0, female: 0, unknown: 1, total: 1 })
+    expect(sumGender(byClass.values())).toEqual({ male: 1, female: 2, unknown: 1, total: 4 })
   })
 })

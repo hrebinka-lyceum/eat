@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { fetchAllPages, unwrap } from './helpers'
 import { compareClassNames } from '@/lib/grades'
-import type { Views } from '@/types/database'
+import type { Gender, Views } from '@/types/database'
 
 /**
  * Представлення зі статистикою. Колонка total_cost приходить як null для
@@ -123,5 +123,39 @@ export async function costRows(from: string, to: string): Promise<OrderCostRow[]
     // Для суми він просто нічого не додає.
     cost: row.order_items.reduce((sum, item) => sum + (item.price_at_order ?? 0), 0),
     unpriced: row.order_items.every((item) => item.price_at_order === null),
+  }))
+}
+
+/** Замовлення зі статтю учня: день, клас (зліпок із замовлення), стать (поточна). */
+export interface OrderGenderRow {
+  menu_date: string
+  class_id: string
+  gender: Gender | null
+}
+
+/**
+ * Хто замовляв за статтю — для екранів замовлень («Порції на день»,
+ * «Замовлення по днях»). Представлення статі не знають, тож беремо самі
+ * замовлення. Цін тут немає, тому функція придатна для будь-якої ролі, що
+ * бачить ці екрани, зокрема для їдальні.
+ */
+export async function orderGenders(from: string, to: string): Promise<OrderGenderRow[]> {
+  const rows = (await fetchAllPages(
+    (start, end) =>
+      supabase
+        .from('orders')
+        .select('menu_date, class_id, students(gender)')
+        .gte('menu_date', from)
+        .lte('menu_date', to)
+        .order('menu_date')
+        .order('id')
+        .range(start, end),
+    'Не вдалося отримати замовлення за статтю.',
+  )) as unknown as Array<{ menu_date: string; class_id: string; students: { gender: Gender | null } | null }>
+
+  return rows.map((row) => ({
+    menu_date: row.menu_date,
+    class_id: row.class_id,
+    gender: row.students?.gender ?? null,
   }))
 }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { classCoverage, dailyTotals } from '@/api/stats'
+import { classCoverage, dailyTotals, orderGenders } from '@/api/stats'
 import { listMenuDays } from '@/api/menu'
 import { useCanSeeCost } from '@/auth/permissions'
 import { qk } from '@/lib/queryKeys'
@@ -8,6 +8,7 @@ import { shiftIso } from '@/lib/dates'
 import { csvFilename } from '@/lib/csv'
 import { formatDate, formatDateWithWeekday, formatMoney, toIsoDate } from '@/lib/format'
 import { compareClassNames } from '@/lib/grades'
+import { sumGender, tallyGender, type GenderCounts } from '@/lib/mealReport'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
@@ -74,6 +75,12 @@ export default function OrderStatsPage() {
     placeholderData: (previous) => previous,
   })
 
+  const genderQuery = useQuery({
+    queryKey: qk.orderGenders(from, to),
+    queryFn: () => orderGenders(from, to),
+    placeholderData: (previous) => previous,
+  })
+
   // Кістяк — дні меню, а не дні із замовленнями: порожній завтрашній день
   // теж треба бачити, інакше здається, що його немає.
   const rows = useMemo<DayRow[]>(() => {
@@ -114,6 +121,21 @@ export default function OrderStatsPage() {
     }
   }, [coverageQuery.data, rows])
 
+  // Хлопці й дівчата: за день — замовлення (= діти), за клас за період — порції.
+  const genderByDay = useMemo(
+    () => tallyGender(genderQuery.data ?? [], (row) => row.menu_date),
+    [genderQuery.data],
+  )
+  const genderByClass = useMemo(
+    () => tallyGender(genderQuery.data ?? [], (row) => row.class_id),
+    [genderQuery.data],
+  )
+  const periodGender = sumGender(genderByDay.values())
+  const withUnknown = periodGender.unknown > 0
+  const NO_GENDER: GenderCounts = { male: 0, female: 0, unknown: 0, total: 0 }
+  const dayGender = (date: string) => genderByDay.get(date) ?? NO_GENDER
+  const classGender = (classId: string) => genderByClass.get(classId) ?? NO_GENDER
+
   const total = rows.reduce((sum, row) => sum + row.total, 0)
   const daysWithOrders = rows.filter((row) => row.total > 0)
   const average = daysWithOrders.length === 0 ? 0 : total / daysWithOrders.length
@@ -124,13 +146,13 @@ export default function OrderStatsPage() {
   const periodCost = rows.reduce((sum, row) => sum + (row.cost ?? 0), 0)
 
   const loading = daysQuery.isPending || totalsQuery.isPending
-  const error = daysQuery.error ?? totalsQuery.error ?? coverageQuery.error
+  const error = daysQuery.error ?? totalsQuery.error ?? coverageQuery.error ?? genderQuery.error
 
   return (
     <div className="space-y-6" data-print="sheet">
       <PageHeader
         title="Замовлення по днях"
-        description="Скільки порцій і від яких класів — разом із днями, що ще попереду."
+        description="Скільки порцій, від яких класів, скільки хлопців і дівчат — разом із днями, що ще попереду."
         actions={
           <ExportButton
             rows={rows}
@@ -138,6 +160,9 @@ export default function OrderStatsPage() {
             columns={[
               { header: 'Дата', value: (r) => r.menu_date },
               { header: 'Замовлень', value: (r) => r.total },
+              { header: 'Хлопців', value: (r) => dayGender(r.menu_date).male },
+              { header: 'Дівчат', value: (r) => dayGender(r.menu_date).female },
+              { header: 'Стать не вказано', value: (r) => dayGender(r.menu_date).unknown },
               { header: 'Пільгових', value: (r) => r.privileged },
               { header: 'Звичайних', value: (r) => r.regular },
               { header: 'Після дедлайну', value: (r) => r.late },
@@ -236,6 +261,9 @@ export default function OrderStatsPage() {
                 <TableRow>
                   <TableHead>День</TableHead>
                   <TableHead className="text-right">Замовлень</TableHead>
+                  <TableHead className="text-right">Хлопців</TableHead>
+                  <TableHead className="text-right">Дівчат</TableHead>
+                  {withUnknown ? <TableHead className="text-right">Стать не вказано</TableHead> : null}
                   <TableHead className="text-right">Пільгових</TableHead>
                   <TableHead className="text-right">Звичайних</TableHead>
                   <TableHead className="text-right">Після дедлайну</TableHead>
@@ -254,6 +282,13 @@ export default function OrderStatsPage() {
                     <TableCell className="text-right text-base font-semibold tabular-nums">
                       {row.total}
                     </TableCell>
+                    <TableCell className="text-right tabular-nums">{dayGender(row.menu_date).male}</TableCell>
+                    <TableCell className="text-right tabular-nums">{dayGender(row.menu_date).female}</TableCell>
+                    {withUnknown ? (
+                      <TableCell className="text-right tabular-nums text-muted-foreground">
+                        {dayGender(row.menu_date).unknown || '—'}
+                      </TableCell>
+                    ) : null}
                     <TableCell className="text-right tabular-nums">{row.privileged}</TableCell>
                     <TableCell className="text-right tabular-nums">{row.regular}</TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
@@ -271,6 +306,11 @@ export default function OrderStatsPage() {
                 <TableRow>
                   <TableCell>Разом</TableCell>
                   <TableCell className="text-right tabular-nums">{total}</TableCell>
+                  <TableCell className="text-right tabular-nums">{periodGender.male}</TableCell>
+                  <TableCell className="text-right tabular-nums">{periodGender.female}</TableCell>
+                  {withUnknown ? (
+                    <TableCell className="text-right tabular-nums">{periodGender.unknown}</TableCell>
+                  ) : null}
                   <TableCell className="text-right tabular-nums">
                     {rows.reduce((sum, row) => sum + row.privileged, 0)}
                   </TableCell>
@@ -304,6 +344,9 @@ export default function OrderStatsPage() {
                       value: (c: (typeof classes)[number]) => c.days.get(date) ?? 0,
                     })),
                     { header: 'Разом', value: (c) => c.total },
+                    { header: 'Хлопців', value: (c) => classGender(c.id).male },
+                    { header: 'Дівчат', value: (c) => classGender(c.id).female },
+                    { header: 'Стать не вказано', value: (c) => classGender(c.id).unknown },
                   ]}
                 />
               </div>
@@ -323,6 +366,9 @@ export default function OrderStatsPage() {
                         </TableHead>
                       ))}
                       <TableHead className="text-right">Разом</TableHead>
+                      <TableHead className="text-right">Хлопців</TableHead>
+                      <TableHead className="text-right">Дівчат</TableHead>
+                      {withUnknown ? <TableHead className="text-right">Стать не вказано</TableHead> : null}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -347,6 +393,13 @@ export default function OrderStatsPage() {
                         <TableCell className="text-right font-medium tabular-nums">
                           {item.total}
                         </TableCell>
+                        <TableCell className="text-right tabular-nums">{classGender(item.id).male}</TableCell>
+                        <TableCell className="text-right tabular-nums">{classGender(item.id).female}</TableCell>
+                        {withUnknown ? (
+                          <TableCell className="text-right tabular-nums text-muted-foreground">
+                            {classGender(item.id).unknown || '—'}
+                          </TableCell>
+                        ) : null}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -364,6 +417,11 @@ export default function OrderStatsPage() {
                       <TableCell className="text-right tabular-nums">
                         {classes.reduce((sum, item) => sum + item.total, 0)}
                       </TableCell>
+                      <TableCell className="text-right tabular-nums">{periodGender.male}</TableCell>
+                      <TableCell className="text-right tabular-nums">{periodGender.female}</TableCell>
+                      {withUnknown ? (
+                        <TableCell className="text-right tabular-nums">{periodGender.unknown}</TableCell>
+                      ) : null}
                     </TableRow>
                   </TableFooter>
                 </Table>

@@ -4,14 +4,15 @@ import { renderWithProviders } from '../helpers'
 import { shiftIso } from '@/lib/dates'
 import { toIsoDate } from '@/lib/format'
 
-const { listMenuDays, dailyTotals, classCoverage } = vi.hoisted(() => ({
+const { listMenuDays, dailyTotals, classCoverage, orderGenders } = vi.hoisted(() => ({
   listMenuDays: vi.fn(),
   dailyTotals: vi.fn(),
   classCoverage: vi.fn(),
+  orderGenders: vi.fn(),
 }))
 
 vi.mock('@/api/menu', () => ({ listMenuDays }))
-vi.mock('@/api/stats', () => ({ dailyTotals, classCoverage }))
+vi.mock('@/api/stats', () => ({ dailyTotals, classCoverage, orderGenders }))
 
 const { default: OrderStatsPage } = await import('@/pages/cafeteria/OrderStatsPage')
 
@@ -50,7 +51,13 @@ beforeEach(() => {
     coverage(today, 'c2', '7-Б', 32),
     coverage(tomorrow, 'c1', '7-А', 5),
   ])
+  orderGenders.mockResolvedValue([])
 })
+
+const genders = (menu_date: string, class_id: string, male: number, female: number) => [
+  ...Array.from({ length: male }, () => ({ menu_date, class_id, gender: 'male' as const })),
+  ...Array.from({ length: female }, () => ({ menu_date, class_id, gender: 'female' as const })),
+]
 
 const renderPage = () => renderWithProviders(<OrderStatsPage />, { role: 'cafeteria' })
 
@@ -99,5 +106,26 @@ describe('замовлення по днях', () => {
     renderPage()
 
     expect(await screen.findByText(/немає жодного дня меню/)).toBeInTheDocument()
+  })
+
+  it('показує хлопців і дівчат по днях і по класах', async () => {
+    orderGenders.mockResolvedValue([
+      ...genders(yesterday, 'c1', 10, 8),
+      ...genders(today, 'c1', 12, 8),
+      ...genders(today, 'c2', 15, 17),
+    ])
+    renderPage()
+
+    // День: сьогодні 52 замовлення = 27 хлопців + 25 дівчат.
+    await screen.findByText('Класи по днях')
+    const daysTable = screen.getAllByRole('table')[0]
+    const dayRow = within(daysTable).getByRole('cell', { name: '52' }).closest('tr') as HTMLElement
+    const dayCells = within(dayRow).getAllByRole('cell').map((cell) => cell.textContent)
+    expect(dayCells.slice(1, 4)).toEqual(['52', '27', '25'])
+
+    // Клас 7-А за період: 10 + 12 хлопців і 8 + 8 дівчат.
+    const classRow = screen.getAllByRole('cell', { name: '7-А' }).at(-1)!.closest('tr') as HTMLElement
+    const classCells = within(classRow).getAllByRole('cell').map((cell) => cell.textContent)
+    expect(classCells.slice(-2)).toEqual(['22', '16'])
   })
 })

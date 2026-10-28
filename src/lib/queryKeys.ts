@@ -27,4 +27,5 @@ export const qk = {
   privilegeCategories: () => ['privilege-categories'] as const,
   reportSettings: () => ['report-settings'] as const,
   mealOrders: (from: string, to: string) => ['stats', 'meal-orders', from, to] as const,
+  orderGenders: (from: string, to: string) => ['stats', 'order-genders', from, to] as const,
 }

@@ -318,3 +318,38 @@ export function buildGenderBreakdown(
     total: genderOf(rows),
   }
 }
+
+// --- Замовлення за статтю на екранах замовлень ---------------------------------
+
+const emptyCounts = (): GenderCounts => ({ male: 0, female: 0, unknown: 0, total: 0 })
+
+/**
+ * Скільки замовлень хлопців і дівчат — згруповано за ключем (класом чи днем).
+ * Рахуються замовлення, не діти: за один день це те саме (одне замовлення
+ * на дитину), а за період — порції.
+ */
+export function tallyGender<T extends { gender: Gender | null }>(
+  rows: T[],
+  key: (row: T) => string,
+): Map<string, GenderCounts> {
+  const map = new Map<string, GenderCounts>()
+  for (const row of rows) {
+    const k = key(row)
+    const counts = map.get(k) ?? emptyCounts()
+    counts[row.gender ?? 'unknown'] += 1
+    counts.total += 1
+    map.set(k, counts)
+  }
+  return map
+}
+
+export function sumGender(list: Iterable<GenderCounts>): GenderCounts {
+  const sum = emptyCounts()
+  for (const counts of list) {
+    sum.male += counts.male
+    sum.female += counts.female
+    sum.unknown += counts.unknown
+    sum.total += counts.total
+  }
+  return sum
+}
