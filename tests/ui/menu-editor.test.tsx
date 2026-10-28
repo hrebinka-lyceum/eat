@@ -3,18 +3,23 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '../helpers'
 
-const { getNextEmptyDay, getMenuDay, listMenuItems, listDishes } = vi.hoisted(() => ({
-  getNextEmptyDay: vi.fn(),
-  getMenuDay: vi.fn(),
-  listMenuItems: vi.fn(),
-  listDishes: vi.fn(),
-}))
+const { getNextEmptyDay, getMenuDay, listMenuItems, listDishes, addMenuItem, setDayPrice, findOrCreateComponent } =
+  vi.hoisted(() => ({
+    getNextEmptyDay: vi.fn(),
+    getMenuDay: vi.fn(),
+    listMenuItems: vi.fn(),
+    listDishes: vi.fn(),
+    addMenuItem: vi.fn(),
+    setDayPrice: vi.fn(),
+    findOrCreateComponent: vi.fn(),
+  }))
 
 vi.mock('@/api/menu', () => ({
   getNextEmptyDay,
   getMenuDay,
   listMenuItems,
-  addMenuItem: vi.fn(),
+  addMenuItem,
+  setDayPrice,
   removeMenuItem: vi.fn(),
   setMenuItemPrice: vi.fn(),
   createMenuDay: vi.fn(),
@@ -22,7 +27,11 @@ vi.mock('@/api/menu', () => ({
   generateMenuDays: vi.fn(),
   copyMenu: vi.fn(),
 }))
-vi.mock('@/api/dishes', () => ({ listDishes }))
+vi.mock('@/api/dishes', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/api/dishes')>()),
+  listDishes,
+  findOrCreateComponent,
+}))
 
 const { default: MenuEditorPage } = await import('@/pages/cafeteria/MenuEditorPage')
 
@@ -131,6 +140,28 @@ describe('редактор меню', () => {
     expect(await screen.findByText(/ще не створено/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Створити день' })).toBeInTheDocument()
     expect(container.textContent).toContain('Редактор меню')
+  })
+
+  // Новий компонент: спершу в довідник, потім у блюдо, потім — вартість
+  // заново (тригер ставить новій позиції ціну з довідника).
+  it('новий компонент додає і в довідник, і в блюдо, зберігаючи вартість', async () => {
+    getNextEmptyDay.mockResolvedValue(day)
+    getMenuDay.mockResolvedValue(day)
+    listMenuItems.mockResolvedValue([{ ...menuItem('mi1', 'Гречана каша', 'second'), price: 58.5 }])
+    findOrCreateComponent.mockResolvedValue({ id: 'new', name: 'Перець свіжий', category: 'second', price: null, is_active: true })
+    addMenuItem.mockResolvedValue({})
+    setDayPrice.mockResolvedValue(undefined)
+
+    renderWithProviders(<MenuEditorPage />, { role: 'cafeteria' })
+    await screen.findByText('Гречана каша')
+    await userEvent.type(screen.getByLabelText('Пошук компонента'), 'перець свіжий')
+    await userEvent.click(screen.getByRole('button', { name: 'Додати «Перець свіжий» як новий компонент' }))
+
+    await vi.waitFor(() => expect(setDayPrice).toHaveBeenCalled())
+    expect(findOrCreateComponent).toHaveBeenCalledWith('Перець свіжий')
+    expect(addMenuItem).toHaveBeenCalledWith(DATE, 'new')
+    expect(setDayPrice).toHaveBeenCalledWith(DATE, 58.5)
+    expect(addMenuItem.mock.invocationCallOrder[0]).toBeLessThan(setDayPrice.mock.invocationCallOrder[0])
   })
 
   it('без дня публікувати нічого — кнопка неактивна', async () => {

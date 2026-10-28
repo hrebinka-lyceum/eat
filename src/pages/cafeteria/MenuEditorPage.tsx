@@ -12,7 +12,7 @@ import {
   setDayPrice,
   setMenuDayStatus,
 } from '@/api/menu'
-import { listDishes } from '@/api/dishes'
+import { findOrCreateComponent, listDishes } from '@/api/dishes'
 import { qk } from '@/lib/queryKeys'
 import { hoursUntil } from '@/lib/dates'
 import {
@@ -117,6 +117,24 @@ export default function MenuEditorPage() {
     onError: (err) => toast.error(humanError(err)),
   })
 
+  // Новий компонент просто з редактора: спершу в довідник (або знайдений там
+  // наявний), потім у блюдо — з тим самим відновленням вартості, що й вище.
+  const addNewComponent = useMutation({
+    mutationFn: async (name: string) => {
+      const total = dayTotalRef.current
+      const dish = await findOrCreateComponent(name)
+      await addMenuItem(activeDate, dish.id)
+      await setDayPrice(activeDate, total)
+      return dish
+    },
+    onSuccess: async (dish) => {
+      await refresh()
+      await queryClient.invalidateQueries({ queryKey: ['dishes'] })
+      toast.success(`«${dish.name}» додано до блюда і в довідник`)
+    },
+    onError: (err) => toast.error(humanError(err)),
+  })
+
   const removeItem = useMutation({
     mutationFn: async (menuItemId: string) => {
       const total = dayTotalRef.current
@@ -171,7 +189,8 @@ export default function MenuEditorPage() {
   dayTotalRef.current = hasPrice ? dayTotal : null
   const hoursLeft = day ? hoursUntil(day.cutoff_at) : null
   const shortNotice = hoursLeft !== null && hoursLeft < SHORT_NOTICE_HOURS
-  const busy = addItem.isPending || removeItem.isPending || changePrice.isPending
+  const busy =
+    addItem.isPending || addNewComponent.isPending || removeItem.isPending || changePrice.isPending
 
   const onPublishClick = () => {
     if (items.length === 0) {
@@ -356,6 +375,7 @@ export default function MenuEditorPage() {
                 usedDishIds={usedDishIds}
                 disabled={busy}
                 onAdd={(dish) => addItem.mutate(dish.id)}
+                onCreate={(name) => addNewComponent.mutateAsync(name)}
               />
             </div>
           </div>

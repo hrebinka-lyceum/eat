@@ -1,7 +1,14 @@
 import { supabase } from '@/lib/supabase'
-import { unwrap } from './helpers'
+import { likeEscape, unwrap } from './helpers'
 import { humanErrorWith } from '@/lib/errors'
-import type { Dish, TablesInsert, TablesUpdate } from '@/types/database'
+import type { Dish, DishCategory, TablesInsert, TablesUpdate } from '@/types/database'
+
+/**
+ * Категорія, яку пишемо кожному новому компоненту. Колонка в схемі
+ * обов'язкова, але продукт категорій більше не має — значення одне й те саме
+ * і ніде не показується.
+ */
+export const COMPONENT_CATEGORY: DishCategory = 'second'
 
 /**
  * Довідник компонентів блюда (гречана каша, котлета, чай…).
@@ -56,4 +63,30 @@ export async function deleteDish(dishId: string): Promise<void> {
       ),
     )
   }
+}
+
+/** «  гречана   каша » → «Гречана каша»: зайві пробіли геть, перша літера велика. */
+export function normalizeComponentName(name: string): string {
+  const clean = name.trim().replace(/\s+/g, ' ')
+  return clean.charAt(0).toLocaleUpperCase('uk') + clean.slice(1)
+}
+
+/**
+ * Компонент за назвою — знайти або створити.
+ *
+ * Назва в базі не унікальна, тож без цієї перевірки «гречана каша», набрана
+ * в редакторі меню, стала б другою «Гречаною кашею» в довіднику. Шукаємо без
+ * урахування регістру і серед вимкнених: вимкнений вмикаємо, а не дублюємо.
+ */
+export async function findOrCreateComponent(name: string): Promise<Dish> {
+  const clean = normalizeComponentName(name)
+  if (!clean) throw new Error('Вкажіть назву компонента.')
+
+  const existing = unwrap(
+    await supabase.from('dishes').select('*').ilike('name', likeEscape(clean)).limit(1),
+    'Не вдалося перевірити довідник компонентів.',
+  )[0]
+
+  if (existing) return existing.is_active ? existing : setDishActive(existing.id, true)
+  return createDish({ name: clean, category: COMPONENT_CATEGORY, price: null })
 }

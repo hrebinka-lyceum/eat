@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { createDish, updateDish } from '@/api/dishes'
+import { COMPONENT_CATEGORY, createDish, updateDish } from '@/api/dishes'
 import { humanError } from '@/lib/errors'
 import { Button } from '@/components/ui/button'
 import {
@@ -16,14 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { ErrorState } from '@/components/common/states'
-import type { Dish, DishCategory } from '@/types/database'
-
-/**
- * Категорія лишилася в схемі обов'язковим полем, але продукт нею більше не
- * оперує: блюдо складається з довільних компонентів. Пишемо одне й те саме
- * значення й ніде його не показуємо.
- */
-const DEFAULT_CATEGORY: DishCategory = 'second'
+import type { Dish } from '@/types/database'
 
 /**
  * Створення й редагування компонента блюда.
@@ -56,7 +49,7 @@ export function DishDialog({
   const mutation = useMutation({
     mutationFn: async (payload: { name: string; is_active: boolean }) => {
       if (dish) return updateDish(dish.id, payload)
-      return createDish({ ...payload, category: DEFAULT_CATEGORY, price: null })
+      return createDish({ ...payload, category: COMPONENT_CATEGORY, price: null })
     },
     onSuccess: async (saved) => {
       await queryClient.invalidateQueries({ queryKey: ['dishes'] })
