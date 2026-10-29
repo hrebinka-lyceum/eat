@@ -4,6 +4,7 @@ import {
   CalendarRange,
   ChartColumn,
   ClipboardList,
+  ClipboardPlus,
   CookingPot,
   FileText,
   GraduationCap,
@@ -70,6 +71,15 @@ export const NAV_ITEMS: NavItem[] = [
     label: 'Замовлення по днях',
     icon: CalendarRange,
     roles: ['cafeteria', 'admin', 'superadmin'],
+    group: 'work',
+  },
+  // Лише адміністрація: керівник замовляє на «Замовленнях класу», а після
+  // дедлайну — тільки через адміністратора.
+  {
+    to: '/reorder',
+    label: 'Дозамовити',
+    icon: ClipboardPlus,
+    roles: ['admin', 'superadmin'],
     group: 'work',
   },
   {

@@ -35,6 +35,7 @@ import PrivilegedReport from '@/pages/admin/reports/PrivilegedReport'
 import LateOrdersReport from '@/pages/admin/reports/LateOrdersReport'
 import GenderReport from '@/pages/admin/reports/GenderReport'
 import SchoolSettingsPage from '@/pages/admin/SchoolSettingsPage'
+import ReorderPage from '@/pages/admin/ReorderPage'
 
 import UsersPage from '@/pages/superadmin/UsersPage'
 import SettingsPage from '@/pages/superadmin/SettingsPage'
@@ -122,6 +123,7 @@ export default function App() {
 
                     <Route element={<RequireRole roles={['admin', 'superadmin']} />}>
                       <Route path="/dashboard" element={<SchoolDashboardPage />} />
+                      <Route path="/reorder" element={<ReorderPage />} />
                       <Route path="/search" element={<StudentSearchPage />} />
                       <Route path="/classes" element={<ClassesPage />} />
                       <Route path="/reports" element={<ReportsPage />} />
