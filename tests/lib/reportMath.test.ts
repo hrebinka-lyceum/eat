@@ -3,9 +3,7 @@ import {
   aggregateCoverage,
   aggregateReimbursement,
   coverageAveragePerDay,
-  coverageClassPct,
   coverageRegisteredPct,
-  coverageTotalClassPct,
   coverageTotalRegisteredPct,
   coverageTotals,
   reimbursementTotals,
@@ -14,7 +12,6 @@ import {
 
 const day = (over: Partial<CoverageDay> & Pick<CoverageDay, 'class_id'>): CoverageDay => ({
   class_name: over.class_id,
-  total_students: 28,
   students_registered: 20,
   students_ordered: 10,
   ...over,
@@ -33,7 +30,9 @@ describe('охоплення', () => {
     expect(rows[0].days).toBe(2)
   })
 
-  it('бере розмір реєстру за останній день, а не середній', () => {
+  // Розмір класу — зі списку класу (учні змінюються: прийшли, вибули),
+  // тож береться найсвіжіше число, а не середнє.
+  it('бере кількість учнів у класі за останній день, а не середню', () => {
     const rows = aggregateCoverage([
       day({ class_id: '7-А', students_registered: 20 }),
       day({ class_id: '7-А', students_registered: 22 }),
@@ -52,15 +51,6 @@ describe('охоплення', () => {
     expect(coverageRegisteredPct(rows[0])).toBeCloseTo(50, 5)
   })
 
-  it('частка класу порожня без указаного розміру', () => {
-    const [withSize, without] = aggregateCoverage([
-      day({ class_id: '7-А', total_students: 28, students_registered: 21 }),
-      day({ class_id: '8-А', total_students: null, students_registered: 24 }),
-    ])
-    expect(coverageClassPct(withSize)).toBeCloseTo(75, 5)
-    expect(coverageClassPct(without)).toBeNull()
-  })
-
   it('середнє за день', () => {
     const rows = aggregateCoverage([
       day({ class_id: '7-А', students_ordered: 10 }),
@@ -69,25 +59,16 @@ describe('охоплення', () => {
     expect(coverageAveragePerDay(rows[0])).toBe(15)
   })
 
-  // Регресія: підсумок показував 118,5%, бо клас без розміру потрапляв
-  // у чисельник, але не в знаменник.
-  it('підсумковий відсоток не перевищує 100 через класи без розміру', () => {
+  // Список класу — усі учні, тож охоплення не може перевищити 100%:
+  // замовити може лише той, хто є в списку.
+  it('підсумкове охоплення школи — від сум усіх класів', () => {
     const rows = aggregateCoverage([
-      day({ class_id: '7-А', total_students: 28, students_registered: 21 }),
-      day({ class_id: '7-Б', total_students: 26, students_registered: 19 }),
-      day({ class_id: '8-А', total_students: null, students_registered: 24 }),
+      day({ class_id: '7-А', students_registered: 28, students_ordered: 21 }),
+      day({ class_id: '7-Б', students_registered: 26, students_ordered: 19 }),
     ])
-    const pct = coverageTotalClassPct(rows)!
-    expect(pct).toBeCloseTo((21 + 19) / (28 + 26) * 100, 5)
-    expect(pct).toBeLessThanOrEqual(100)
-  })
-
-  it('підсумок називає класи без розміру', () => {
-    const rows = aggregateCoverage([
-      day({ class_id: '7-А' }),
-      day({ class_id: '8-А', total_students: null }),
-    ])
-    expect(coverageTotals(rows).unsized.map((r) => r.class_id)).toEqual(['8-А'])
+    const totals = coverageTotals(rows)
+    expect(totals.registered).toBe(54)
+    expect(coverageTotalRegisteredPct(totals)).toBeCloseTo((21 + 19) / (28 + 26) * 100, 5)
   })
 
   it('підсумковий відсоток замовлень — теж від сум', () => {
@@ -99,7 +80,6 @@ describe('охоплення', () => {
   })
 
   it('порожній період не ділить на нуль', () => {
-    expect(coverageTotalClassPct([])).toBeNull()
     expect(coverageTotalRegisteredPct(coverageTotals([]))).toBeNull()
   })
 })

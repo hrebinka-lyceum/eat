@@ -29,7 +29,7 @@ export default function StudentMenuPage() {
   if (isPending) return <LoadingState />
   if (error) return <ErrorState error={error} />
 
-  // Учень без картки в реєстрі — це не помилка даних, а незавершене
+  // Учень без картки в списку класу — це не помилка даних, а незавершене
   // налаштування. Пояснюємо, до кого йти.
   if (!student) {
     return (

@@ -243,7 +243,7 @@ export default function ReorderPage() {
 
               {studentsQuery.data && students.length === 0 ? (
                 <EmptyState
-                  title={studentsQuery.data.length === 0 ? 'У реєстрі класу нікого немає' : 'Нікого не знайдено'}
+                  title={studentsQuery.data.length === 0 ? 'У списку класу нікого немає' : 'Нікого не знайдено'}
                 />
               ) : null}
 

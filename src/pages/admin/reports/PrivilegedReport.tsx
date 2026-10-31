@@ -127,7 +127,7 @@ export default function PrivilegedReport() {
 
       {!studentsQuery.isPending && rows.length === 0 ? (
         <EmptyState
-          title="Пільговиків у реєстрі немає"
+          title="Пільговиків немає"
           hint="Статус ставиться в картці учня — класним керівником або адміністрацією."
         />
       ) : null}

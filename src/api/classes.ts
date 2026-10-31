@@ -48,11 +48,6 @@ export async function updateClass(classId: string, patch: TablesUpdate<'classes'
   )
 }
 
-/** Розмір класу; без нього coverage_class_pct залишається порожнім. */
-export async function setTotalStudents(classId: string, total: number | null): Promise<Class> {
-  return updateClass(classId, { total_students: total })
-}
-
 export async function setClassTeacher(classId: string, teacherId: string | null): Promise<Class> {
   return updateClass(classId, { teacher_id: teacherId })
 }

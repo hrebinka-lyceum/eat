@@ -64,7 +64,7 @@ async function callAccounts<T>(body: Record<string, unknown>): Promise<T> {
   return data
 }
 
-/** Видати логіни учням, які вже є в реєстрі класу (до 60 за раз). */
+/** Видати логіни учням, які вже є в списку класу (до 60 за раз). */
 export function issueLogins(studentIds: string[]): Promise<IssueLoginsResult> {
   return callAccounts<IssueLoginsResult>({ action: 'issue_logins', student_ids: studentIds })
 }

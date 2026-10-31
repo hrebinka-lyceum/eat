@@ -28,14 +28,18 @@ export async function classCoverage(
   from: string,
   to: string = from,
 ): Promise<Views<'v_class_coverage'>[]> {
-  const rows = unwrap(
-    await supabase
-      .from('v_class_coverage')
-      .select('*')
-      .gte('menu_date', from)
-      .lte('menu_date', to)
-      .order('menu_date')
-      .order('class_name'),
+  // Рядків — днів × класів: квартал з 25 класами вже понад тисячу, тож частинами.
+  // День + клас — унікальна пара, порядок стабільний.
+  const rows = await fetchAllPages(
+    (start, end) =>
+      supabase
+        .from('v_class_coverage')
+        .select('*')
+        .gte('menu_date', from)
+        .lte('menu_date', to)
+        .order('menu_date')
+        .order('class_id')
+        .range(start, end),
     'Не вдалося отримати охоплення по класах.',
   )
   // Сервер сортує назви як рядки («10-А» перед «2-А»).

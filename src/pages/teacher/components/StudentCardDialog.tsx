@@ -55,7 +55,7 @@ export function StudentCardDialog({
     mutationFn: () => retireStudent(student!.id, toIsoDate()),
     onSuccess: async () => {
       await invalidate()
-      toast.success('Учня прибрано з реєстру харчування')
+      toast.success('Учня позначено як вибулого')
       onOpenChange(false)
     },
     onError: (err) => setError(humanError(err)),
@@ -65,7 +65,7 @@ export function StudentCardDialog({
     mutationFn: () => restoreStudent(student!.id),
     onSuccess: async () => {
       await invalidate()
-      toast.success('Учня повернуто в реєстр')
+      toast.success('Учня повернуто до класу')
       onOpenChange(false)
     },
     onError: (err) => setError(humanError(err)),
@@ -91,7 +91,7 @@ export function StudentCardDialog({
         <DialogHeader>
           <DialogTitle>{fullName(student.last_name, student.first_name)}</DialogTitle>
           <DialogDescription>
-            Харчується з {formatDate(student.enrolled_from)}
+            У класі з {formatDate(student.enrolled_from)}
             {student.is_active ? '' : ` · вибув ${formatDate(student.left_at)}`}
           </DialogDescription>
         </DialogHeader>
@@ -134,7 +134,7 @@ export function StudentCardDialog({
               {confirmRetire ? (
                 <div className="space-y-2">
                   <p className="text-sm">
-                    Прибрати з реєстру харчування? Учень зникне зі списку, але всі його
+                    Учень вибув зі школи? Він зникне зі списку класу, але всі його
                     замовлення й статистика залишаться.
                   </p>
                   <div className="flex gap-2">
@@ -144,7 +144,7 @@ export function StudentCardDialog({
                       disabled={retire.isPending}
                       onClick={() => retire.mutate()}
                     >
-                      Так, прибрати
+                      Так, вибув
                     </Button>
                     <Button variant="ghost" size="sm" onClick={() => setConfirmRetire(false)}>
                       Скасувати
@@ -154,7 +154,7 @@ export function StudentCardDialog({
               ) : (
                 <Button variant="ghost" size="sm" onClick={() => setConfirmRetire(true)}>
                   <UserMinus className="size-4" aria-hidden />
-                  Більше не харчується
+                  Вибув зі школи
                 </Button>
               )}
             </div>
@@ -167,7 +167,7 @@ export function StudentCardDialog({
                 onClick={() => restore.mutate()}
               >
                 <UserPlus className="size-4" aria-hidden />
-                Повернути в реєстр
+                Повернути до класу
               </Button>
             </div>
           )}

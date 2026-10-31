@@ -20,11 +20,11 @@ import { GenderSelect, PrivilegeMultiSelect } from '@/components/students/Studen
 import type { Gender } from '@/types/database'
 
 /**
- * Додавання учня до реєстру харчування.
+ * Додавання учня до списку класу.
  *
- * У реєстр вносяться ЛИШЕ ті, хто справді їсть у школі, — це не список
- * класу. Пояснення стоїть просто у вікні, бо саме тут його переплутати
- * найлегше.
+ * У список вносяться ВСІ учні класу, і ті, хто не харчується: охоплення
+ * рахується від усього класу. Пояснення стоїть просто у вікні, бо саме тут
+ * його переплутати найлегше.
  */
 export function AddStudentDialog({
   open,
@@ -65,7 +65,7 @@ export function AddStudentDialog({
       }),
     onSuccess: async (student) => {
       await queryClient.invalidateQueries({ queryKey: ['students'] })
-      toast.success(`${student.last_name} ${student.first_name} — у реєстрі`)
+      toast.success(`${student.last_name} ${student.first_name} — у списку класу`)
       onOpenChange(false)
     },
     onError: (err) => setError(humanError(err, 'Не вдалося додати учня.')),
@@ -84,7 +84,7 @@ export function AddStudentDialog({
       return
     }
     if (!enrolledFrom) {
-      setError('Вкажіть, з якої дати учень харчується.')
+      setError('Вкажіть, з якої дати учень у класі.')
       return
     }
     mutation.mutate()
@@ -97,8 +97,8 @@ export function AddStudentDialog({
           <DialogHeader>
             <DialogTitle>Додати учня</DialogTitle>
             <DialogDescription>
-              У списку харчування — лише ті, хто справді їсть у школі. Це не список
-              класу: тих, хто носить їжу з дому чи ходить додому, вносити не треба.
+              Вносьте всіх учнів класу — і тих, хто не харчується: охоплення
+              рахується від усього класу.
             </DialogDescription>
           </DialogHeader>
 
@@ -130,7 +130,7 @@ export function AddStudentDialog({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="student-from">Харчується з</Label>
+              <Label htmlFor="student-from">У класі з</Label>
               <Input
                 id="student-from"
                 type="date"
@@ -138,9 +138,8 @@ export function AddStudentDialog({
                 onChange={(e) => setEnrolledFrom(e.target.value)}
               />
               <p className="text-xs text-muted-foreground">
-                За замовчуванням сьогодні. Якщо список вносите пізніше, ніж діти
-                почали харчуватися, поставте справжню дату — від неї рахується
-                статистика.
+                За замовчуванням сьогодні. Якщо учень у класі з початку року, поставте
+                1 вересня — від цієї дати він рахується в класі в статистиці охоплення.
               </p>
             </div>
 

@@ -19,7 +19,7 @@ export interface CoverageTrendPoint {
 }
 
 /**
- * Один ряд — частка тих, хто замовив, серед тих, хто харчується.
+ * Один ряд — яка частка класу замовила цього дня.
  * Легенди немає навмисно: ряд один, і його називає заголовок.
  */
 export function CoverageTrendChart({ data }: { data: CoverageTrendPoint[] }) {
@@ -47,14 +47,14 @@ export function CoverageTrendChart({ data }: { data: CoverageTrendPoint[] }) {
                 const point = data.find((item) => item.registered_pct === payload[0]?.value)
                 return [
                   {
-                    name: 'Замовили з тих, хто харчується',
+                    name: 'Замовили, % від класу',
                     value: formatPercent(payload[0]?.value ?? null),
                     color: payload[0]?.color,
                   },
                   ...(point
                     ? [
                         {
-                          name: 'Замовили / у реєстрі',
+                          name: 'Замовили / учнів у класі',
                           value: `${point.students_ordered} з ${point.students_registered}`,
                         },
                       ]

@@ -105,7 +105,7 @@ export default function UsersPage() {
     <div className="space-y-6">
       <PageHeader
         title="Користувачі"
-        description="Співробітники школи. Учнівські акаунти видаються з реєстру класу."
+        description="Співробітники школи. Учнівські акаунти видаються зі списку класу."
         actions={
           <>
             <ExportButton

@@ -251,8 +251,8 @@ export default function ClassOrdersPage() {
 
       {activeDay && students.length === 0 && !studentsQuery.isPending ? (
         <EmptyState
-          title="У реєстрі класу ще нікого немає"
-          hint="Спершу додайте на вкладці «Мій клас» тих, хто харчується."
+          title="У списку класу ще нікого немає"
+          hint="Спершу додайте учнів на вкладці «Мій клас»."
         />
       ) : null}
 

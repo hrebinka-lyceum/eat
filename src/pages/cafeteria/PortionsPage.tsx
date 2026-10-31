@@ -229,7 +229,7 @@ export default function PortionsPage() {
                       { header: 'Хлопців', value: (c) => genderOf(c.class_id).male },
                       { header: 'Дівчат', value: (c) => genderOf(c.class_id).female },
                       { header: 'Стать не вказано', value: (c) => genderOf(c.class_id).unknown },
-                      { header: 'У реєстрі', value: (c) => c.students_registered },
+                      { header: 'Учнів у класі', value: (c) => c.students_registered },
                       ...(canSeeCost
                         ? [
                             {
@@ -251,7 +251,7 @@ export default function PortionsPage() {
                       <TableHead className="text-right">Хлопців</TableHead>
                       <TableHead className="text-right">Дівчат</TableHead>
                       {withUnknown ? <TableHead className="text-right">Стать не вказано</TableHead> : null}
-                      <TableHead className="text-right">У реєстрі</TableHead>
+                      <TableHead className="text-right">Учнів у класі</TableHead>
                       {canSeeCost ? <TableHead className="text-right">Вартість</TableHead> : null}
                     </TableRow>
                   </TableHeader>

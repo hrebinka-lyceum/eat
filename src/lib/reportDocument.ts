@@ -184,8 +184,8 @@ export function organizationDocument(
         ],
       },
       note: report.attendance.some((row) => row.total === null)
-        ? 'Для класів без вказаної кількості учнів охоплення не рахується; ' +
-          'підсумковий відсоток — лише по класах, де кількість відома.'
+        ? 'Для класів, про які за період немає даних, охоплення не рахується; ' +
+          'підсумковий відсоток — лише по класах, де кількість учнів відома.'
         : undefined,
     },
     {
@@ -233,7 +233,7 @@ export function organizationDocument(
 
 function genderSection(report: OrganizationReport): DocSection {
   // Колонку «Не вказано» показуємо лише тоді, коли такі діти є: у заповненому
-  // реєстрі вона була б порожнім шумом.
+  // списку класу вона була б порожнім шумом.
   const withUnknown = report.levelsTotal.gender.unknown > 0
   const columns: DocColumn[] = [
     { header: 'Група класів', align: 'left', width: 2.4 },

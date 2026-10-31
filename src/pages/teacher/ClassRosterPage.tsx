@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CircleCheck, Info, KeyRound, Plus, Search, Star } from 'lucide-react'
+import { CircleCheck, KeyRound, Plus, Search, Star } from 'lucide-react'
 import { listStudentsOfClass } from '@/api/students'
 import { listPrivilegeCategories } from '@/api/privilegeCategories'
 import { listOrdersPlainOfClass } from '@/api/orders'
@@ -34,10 +34,8 @@ import { StudentCardDialog } from './components/StudentCardDialog'
 import type { Student } from '@/types/database'
 
 /**
- * Реєстр класу — ті, хто харчується.
- *
- * Це принципово не список класу: скільки дітей у класі загалом, знає лише
- * classes.total_students, і ставить його адміністрація.
+ * Список класу — усі учні, і ті, хто не харчується: охоплення рахується від
+ * усього класу, тож розмір класу — це кількість учнів у цьому списку.
  */
 export default function ClassRosterPage() {
   const { myClass, isPending: classPending, error: classError } = useMyClass()
@@ -140,7 +138,7 @@ export default function ClassRosterPage() {
     <div className="space-y-6">
       <PageHeader
         title={`Клас ${myClass.name}`}
-        description="Список тих, хто харчується. Це не список класу: вносьте лише дітей, які їдять у школі."
+        description="Усі учні класу — і ті, хто не харчується: охоплення рахується від усього класу."
         actions={
           <>
             <ExportButton
@@ -153,8 +151,8 @@ export default function ClassRosterPage() {
                 { header: 'Пільга', value: (s) => s.is_privileged },
                 { header: 'Пільгова категорія', value: privilegeLabel },
                 { header: 'Має логін', value: (s) => Boolean(s.profile_id) },
-                { header: 'Харчується з', value: (s) => s.enrolled_from },
-                { header: 'У реєстрі', value: (s) => s.is_active },
+                { header: 'У класі з', value: (s) => s.enrolled_from },
+                { header: 'Вибув', value: (s) => !s.is_active },
               ]}
             />
             <Button
@@ -176,23 +174,10 @@ export default function ClassRosterPage() {
         }
       />
 
-      {/* Охоплення класу: без total_students відповіді на це питання немає. */}
       <div className="rounded-lg border p-4">
-        {myClass.total_students ? (
-          <p className="text-sm">
-            Харчуються <strong>{activeCount}</strong> із{' '}
-            <strong>{myClass.total_students}</strong> учнів класу
-          </p>
-        ) : (
-          <div className="flex items-start gap-2 text-sm">
-            <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-            <p>
-              Харчуються <strong>{activeCount}</strong> учнів. Скільки дітей у класі
-              загалом, система не знає — це число вносить адміністрація. Без нього
-              не можна сказати, яку частку класу охоплено.
-            </p>
-          </div>
-        )}
+        <p className="text-sm">
+          Учнів у класі: <strong>{activeCount}</strong>
+        </p>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -233,10 +218,10 @@ export default function ClassRosterPage() {
 
       {studentsQuery.data && visible.length === 0 ? (
         <EmptyState
-          title={students.length === 0 ? 'У реєстрі ще нікого немає' : 'Нікого не знайдено'}
+          title={students.length === 0 ? 'У списку класу ще нікого немає' : 'Нікого не знайдено'}
           hint={
             students.length === 0
-              ? 'Додайте дітей, які харчуються в школі. Логіни їм видавати не обов’язково — замовляти можна за них.'
+              ? 'Додайте всіх учнів класу. Логіни їм видавати не обов’язково — замовляти можна за них.'
               : 'Спробуйте інший пошуковий запит.'
           }
         />

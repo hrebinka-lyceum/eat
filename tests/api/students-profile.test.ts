@@ -66,7 +66,7 @@ describe('deleteStudent', () => {
   // CASCADE, і разом з ним зникла б уся історія. Людині треба сказати, що робити.
   it('відмову через замовлення пояснює і підказує вихід', async () => {
     rpc.mockResolvedValue({ data: null, error: { code: '23503', message: 'x', details: '', hint: '' } })
-    await expect(deleteStudent('s1')).rejects.toThrow(/уже має замовлення.*Більше не харчується/)
+    await expect(deleteStudent('s1')).rejects.toThrow(/уже має замовлення.*Вибув зі школи/)
   })
 
   it('передає примітку, якщо акаунт не вдалося прибрати', async () => {

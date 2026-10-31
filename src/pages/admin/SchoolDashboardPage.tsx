@@ -1,14 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Info } from 'lucide-react'
 import { classCoverage, costRows, dailyTotals, ordersByDish } from '@/api/stats'
-import { listClasses } from '@/api/classes'
-import { getSettings } from '@/api/settings'
 import { useCanSeeCost } from '@/auth/permissions'
 import { qk } from '@/lib/queryKeys'
 import { monthBounds } from '@/lib/dates'
 import {
-  formatDate,
   formatDateWithWeekday,
   formatMoney,
   formatPercent,
@@ -77,13 +73,6 @@ export default function SchoolDashboardPage() {
     queryKey: qk.classCoverage(activeCoverageDay ?? '', activeCoverageDay ?? ''),
     queryFn: () => classCoverage(activeCoverageDay!),
     enabled: Boolean(activeCoverageDay),
-  })
-
-  const settingsQuery = useQuery({ queryKey: qk.settings(), queryFn: getSettings })
-  const classesQuery = useQuery({
-    queryKey: qk.classes(settingsQuery.data?.current_year),
-    queryFn: () => listClasses(settingsQuery.data!.current_year),
-    enabled: Boolean(settingsQuery.data),
   })
 
   const ordersByDayData = useMemo(
@@ -155,7 +144,6 @@ export default function SchoolDashboardPage() {
   }, [dishesQuery.data])
 
   const coverage = coverageQuery.data ?? []
-  const classesWithoutSize = (classesQuery.data ?? []).filter((item) => item.total_students === null)
 
   const loading = totalsQuery.isPending || dishesQuery.isPending
   const error = totalsQuery.error ?? dishesQuery.error ?? costQuery.error
@@ -300,7 +288,7 @@ export default function SchoolDashboardPage() {
 
           <ChartCard
             title="Охоплення по класах"
-            description="Два різні відсотки: один показує пропуски, другий — потенціал."
+            description="Яка частка кожного класу замовила на обраний день."
             actions={
               <div className="flex items-center gap-2">
                 <ExportButton
@@ -309,17 +297,9 @@ export default function SchoolDashboardPage() {
                   columns={[
                     { header: 'Дата', value: (c) => c.menu_date },
                     { header: 'Клас', value: (c) => c.class_name },
+                    { header: 'Учнів у класі', value: (c) => c.students_registered },
                     { header: 'Замовили', value: (c) => c.students_ordered },
-                    { header: 'У реєстрі харчування', value: (c) => c.students_registered },
-                    { header: 'Усього в класі', value: (c) => c.total_students ?? '' },
-                    {
-                      header: 'Замовили, % від тих, хто харчується',
-                      value: (c) => c.coverage_registered_pct ?? '',
-                    },
-                    {
-                      header: 'Харчуються, % від усього класу',
-                      value: (c) => c.coverage_class_pct ?? '',
-                    },
+                    { header: 'Охоплення, % від класу', value: (c) => c.coverage_registered_pct ?? '' },
                   ]}
                 />
               </div>
@@ -332,8 +312,9 @@ export default function SchoolDashboardPage() {
                 <CoverageByClassChart
                   data={coverage.map((row) => ({
                     class_name: row.class_name,
-                    registered_pct: row.coverage_registered_pct,
-                    class_pct: row.coverage_class_pct,
+                    pct: row.coverage_registered_pct,
+                    ordered: row.students_ordered,
+                    registered: row.students_registered,
                   }))}
                 />
                 <div className="mt-4 overflow-x-auto rounded-lg border">
@@ -341,35 +322,23 @@ export default function SchoolDashboardPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Клас</TableHead>
+                        <TableHead className="text-right">Учнів у класі</TableHead>
                         <TableHead className="text-right">Замовили</TableHead>
-                        <TableHead className="text-right">У реєстрі харчування</TableHead>
-                        <TableHead className="text-right">Усього в класі</TableHead>
-                        <TableHead className="text-right">
-                          Замовили, % від тих, хто харчується
-                        </TableHead>
-                        <TableHead className="text-right">
-                          Харчуються, % від усього класу
-                        </TableHead>
+                        <TableHead className="text-right">Охоплення, % від класу</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {coverage.map((row) => (
                         <TableRow key={row.class_id}>
                           <TableCell className="font-medium">{row.class_name}</TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {row.students_ordered}
-                          </TableCell>
                           <TableCell className="text-right tabular-nums text-muted-foreground">
                             {row.students_registered}
                           </TableCell>
-                          <TableCell className="text-right tabular-nums text-muted-foreground">
-                            {row.total_students ?? '—'}
+                          <TableCell className="text-right tabular-nums">
+                            {row.students_ordered}
                           </TableCell>
                           <TableCell className="text-right tabular-nums">
                             {formatPercent(row.coverage_registered_pct)}
-                          </TableCell>
-                          <TableCell className="text-right tabular-nums">
-                            {formatPercent(row.coverage_class_pct)}
                           </TableCell>
                         </TableRow>
                       ))}
@@ -377,37 +346,6 @@ export default function SchoolDashboardPage() {
                   </Table>
                 </div>
 
-                <dl className="mt-4 grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                  <div className="rounded-md border p-2">
-                    <dt className="font-medium text-foreground">
-                      Замовили цього дня — % від тих, хто харчується
-                    </dt>
-                    <dd>
-                      Показує пропуски: скільки дітей із реєстру харчування насправді
-                      замовили саме {formatDate(activeCoverageDay)}.
-                    </dd>
-                  </div>
-                  <div className="rounded-md border p-2">
-                    <dt className="font-medium text-foreground">
-                      Харчуються — % від усього класу
-                    </dt>
-                    <dd>
-                      Показує потенціал: яка частка класу взагалі їсть у школі. Рахується
-                      лише там, де адміністрація вказала кількість учнів у класі.
-                    </dd>
-                  </div>
-                </dl>
-
-                {classesWithoutSize.length > 0 ? (
-                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-dashed p-3 text-sm">
-                    <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-                    <p>
-                      Для класів {classesWithoutSize.map((item) => item.name).join(', ')} не
-                      вказано кількість учнів, тому другий відсоток для них порожній.
-                      Заповнити можна в розділі «Класи».
-                    </p>
-                  </div>
-                ) : null}
               </>
             )}
           </ChartCard>

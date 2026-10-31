@@ -6,6 +6,8 @@ export interface TooltipEntry {
   value?: number
   color?: string
   dataKey?: string | number
+  /** увесь рядок даних, з якого побудовано точку */
+  payload?: unknown
 }
 
 export interface TooltipRow {

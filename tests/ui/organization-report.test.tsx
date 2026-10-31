@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { renderWithProviders } from '../helpers'
 
 const api = vi.hoisted(() => ({
+  classCoverage: vi.fn(),
   mealOrders: vi.fn(),
   listClasses: vi.fn(),
   getReportSettings: vi.fn(),
@@ -13,6 +14,7 @@ const api = vi.hoisted(() => ({
 }))
 
 vi.mock('@/api/reports', () => ({ mealOrders: api.mealOrders }))
+vi.mock('@/api/stats', () => ({ classCoverage: api.classCoverage }))
 vi.mock('@/api/classes', () => ({ listClasses: api.listClasses }))
 vi.mock('@/api/settings', () => ({ getSettings: vi.fn(async () => ({ current_year: '2026/2027' })) }))
 vi.mock('@/api/privilegeCategories', () => ({
@@ -47,6 +49,13 @@ beforeEach(() => {
     { id: 'c7', name: '7-А', academic_year: '2026/2027', teacher_id: null, total_students: 25 },
   ])
   api.mealOrders.mockResolvedValue([order('a', 'c1'), order('b', 'c7', true)])
+  // Учнів у класі — зі списку класу: найбільше за період число.
+  api.classCoverage.mockResolvedValue([
+    { menu_date: '2026-10-01', class_id: 'c1', class_name: '1-А', total_students: null,
+      students_registered: 24, students_ordered: 1, coverage_registered_pct: null, coverage_class_pct: null },
+    { menu_date: '2026-10-02', class_id: 'c1', class_name: '1-А', total_students: null,
+      students_registered: 25, students_ordered: 0, coverage_registered_pct: null, coverage_class_pct: null },
+  ])
   api.getReportSettings.mockResolvedValue({ id: true, director_last_name: 'Петренко', director_first_name: 'Олена' })
   api.docxBlob.mockResolvedValue(new Blob(['docx']))
   api.pdfBlob.mockResolvedValue(new Blob(['pdf']))
@@ -98,5 +107,17 @@ describe('звіт про організацію харчування', () => {
 
     expect(await screen.findByText('За цей період замовлень немає')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Завантажити DOCX/ })).toBeDisabled()
+  })
+
+  // Список класу — усі учні, тож «учнів у класі» береться з нього, а не з
+  // поля, яке колись вписувала адміністрація (у 1-А там 20).
+  it('учнів у класі — за списком класу', async () => {
+    renderWithProviders(<OrganizationReport />, { role: 'admin' })
+    await screen.findByText('3. Відвідування')
+
+    const row = screen.getAllByRole('cell', { name: '1-А' })[0].closest('tr') as HTMLElement
+    const cells = within(row).getAllByRole('cell').map((cell) => cell.textContent)
+    // Клас · Учнів у класі · Харчувалися · З них пільговиків · Охоплення
+    expect(cells).toEqual(['1-А', '25', '1', '0', '4,0'])
   })
 })

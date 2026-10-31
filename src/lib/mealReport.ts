@@ -24,6 +24,7 @@ export interface ClassRef {
   id: string
   name: string
   academic_year: string
+  /** учнів у класі за списком (найбільше за період); null — даних немає */
   total_students: number | null
 }
 
@@ -52,7 +53,7 @@ export interface LevelRow {
 export interface AttendanceRow {
   classId: string
   name: string
-  /** скільки учнів у класі взагалі; null — адміністрація не вказала */
+  /** учнів у класі за списком; null — за період про клас немає даних */
   total: number | null
   ate: number
   privileged: number

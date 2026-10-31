@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Info } from 'lucide-react'
 import { classCoverage } from '@/api/stats'
 import { listStudentsOfClass } from '@/api/students'
 import { useMyClass } from '@/hooks/useMyClass'
@@ -62,12 +61,12 @@ export default function ClassDashboardPage() {
 
   const last = rows[rows.length - 1] ?? null
   const registered = studentsQuery.data?.length ?? 0
+  // Від сум за період, а не середнє денних відсотків: інакше день з одним
+  // учнем у списку важив би стільки ж, скільки повний.
   const averagePct = useMemo(() => {
-    const values = rows
-      .map((row) => row.coverage_registered_pct)
-      .filter((value): value is number => value !== null)
-    if (values.length === 0) return null
-    return values.reduce((sum, value) => sum + value, 0) / values.length
+    const ordered = rows.reduce((sum, row) => sum + row.students_ordered, 0)
+    const inClass = rows.reduce((sum, row) => sum + row.students_registered, 0)
+    return inClass === 0 ? null : (ordered / inClass) * 100
   }, [rows])
 
   if (classPending) return <LoadingState />
@@ -89,24 +88,16 @@ export default function ClassDashboardPage() {
     <div className="space-y-6">
       <PageHeader
         title={`Дашборд класу ${myClass.name}`}
-        description="Скільки дітей харчується і як часто вони замовляють."
+        description="Яка частка класу замовляє харчування."
         actions={
           <ExportButton
             rows={rows}
             filename={csvFilename(`охоплення-${myClass.name}`)}
             columns={[
               { header: 'Дата', value: (r) => r.menu_date },
+              { header: 'Учнів у класі', value: (r) => r.students_registered },
               { header: 'Замовили', value: (r) => r.students_ordered },
-              { header: 'У реєстрі харчування', value: (r) => r.students_registered },
-              { header: 'Усього в класі', value: (r) => r.total_students ?? '' },
-              {
-                header: 'Замовили, % від тих, хто харчується',
-                value: (r) => r.coverage_registered_pct ?? '',
-              },
-              {
-                header: 'Харчуються, % від усього класу',
-                value: (r) => r.coverage_class_pct ?? '',
-              },
+              { header: 'Охоплення, % від класу', value: (r) => r.coverage_registered_pct ?? '' },
             ]}
           />
         }
@@ -136,16 +127,7 @@ export default function ClassDashboardPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatTile
-          label="Харчуються"
-          value={myClass.total_students ? `${registered} із ${myClass.total_students}` : registered}
-          hint={
-            myClass.total_students
-              ? 'учнів класу є в реєстрі харчування'
-              : 'кількість учнів класу не вказана адміністрацією'
-          }
-          emphasis
-        />
+        <StatTile label="Учнів у класі" value={registered} hint="за списком класу" emphasis />
         <StatTile
           label="Замовили востаннє"
           value={last ? `${last.students_ordered} із ${last.students_registered}` : '—'}
@@ -154,7 +136,7 @@ export default function ClassDashboardPage() {
         <StatTile
           label="У середньому за період"
           value={formatPercent(averagePct)}
-          hint="від тих, хто харчується"
+          hint="замовляли від усього класу"
         />
       </div>
 
@@ -171,8 +153,8 @@ export default function ClassDashboardPage() {
       {rows.length > 0 ? (
         <>
           <ChartCard
-            title="Замовили цього дня — % від тих, хто харчується"
-            description="Показує пропуски: скільки дітей із реєстру справді замовили в конкретний день."
+            title="Замовили цього дня — % від класу"
+            description="Яка частка класу замовила в конкретний день."
           >
             <CoverageTrendChart
               data={rows.map((row) => ({
@@ -184,47 +166,30 @@ export default function ClassDashboardPage() {
             />
           </ChartCard>
 
-          {myClass.total_students === null ? (
-            <div className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-sm">
-              <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-              <p>
-                Другий показник — «харчуються, % від усього класу» — тут порожній, бо
-                адміністрація ще не вказала, скільки всього дітей у класі. Система знає
-                лише тих, кого внесли до реєстру харчування.
-              </p>
-            </div>
-          ) : null}
+
 
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>День</TableHead>
+                  <TableHead className="text-right">Учнів у класі</TableHead>
                   <TableHead className="text-right">Замовили</TableHead>
-                  <TableHead className="text-right">У реєстрі</TableHead>
-                  <TableHead className="text-right">
-                    Замовили, % від тих, хто харчується
-                  </TableHead>
-                  <TableHead className="text-right">
-                    Харчуються, % від усього класу
-                  </TableHead>
+                  <TableHead className="text-right">Охоплення, % від класу</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {[...rows].reverse().map((row) => (
                   <TableRow key={row.menu_date}>
                     <TableCell className="font-medium">{formatDate(row.menu_date)}</TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {row.students_ordered}
-                    </TableCell>
                     <TableCell className="text-right tabular-nums text-muted-foreground">
                       {row.students_registered}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatPercent(row.coverage_registered_pct)}
+                      {row.students_ordered}
                     </TableCell>
                     <TableCell className="text-right tabular-nums">
-                      {formatPercent(row.coverage_class_pct)}
+                      {formatPercent(row.coverage_registered_pct)}
                     </TableCell>
                   </TableRow>
                 ))}

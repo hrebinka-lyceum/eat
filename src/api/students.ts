@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { likeEscape, unwrap, unwrapMaybe } from './helpers'
+import { fetchAllPages, likeEscape, unwrap, unwrapMaybe } from './helpers'
 import { humanError, humanErrorWith } from '@/lib/errors'
 import type {
   ClassEnrollment,
@@ -18,8 +18,8 @@ export interface StudentWithClass extends Student {
 const WITH_RELATIONS = '*, classes(id, name), profiles(id, full_name, status)'
 
 /**
- * Реєстр класу — лише ті, хто харчується. Це не список класу:
- * скільки дітей у класі загалом, знає classes.total_students.
+ * Список класу — усі учні, і ті, хто не харчується: розмір класу — це
+ * кількість учнів у ньому.
  */
 export async function listStudentsOfClass(
   classId: string,
@@ -187,7 +187,7 @@ export async function deleteStudent(
         {
           '23503':
             'Учень уже має замовлення, тому видалити його не можна — зникла б історія ' +
-            'харчування і звіти за минулі місяці. Позначте «Більше не харчується».',
+            'харчування і звіти за минулі місяці. Якщо учень вибув, позначте «Вибув зі школи».',
           '42501': 'Учня з історією замовлень може видалити лише суперадміністратор.',
           PGRST202: force
             ? 'Повне видалення учнів ще не налаштоване на сервері — потрібна міграція бази.'
@@ -249,15 +249,30 @@ export async function transferStudent(
 }
 
 /**
- * Учень більше не харчується. Рядок і вся історія лишаються: is_active
- * знімає його з реєстру, left_at каже, з якого дня його не рахувати
+ * Учень вибув зі школи. Рядок і вся історія лишаються: is_active прибирає
+ * його зі списку класу, left_at каже, з якого дня його не рахувати
  * в охопленні.
  */
 export async function retireStudent(studentId: string, leftAt: string): Promise<Student> {
   return updateStudent(studentId, { is_active: false, left_at: leftAt })
 }
 
-/** Повернути учня в реєстр. */
+/** Повернути учня до списку класу. */
 export async function restoreStudent(studentId: string): Promise<Student> {
   return updateStudent(studentId, { is_active: true, left_at: null })
+}
+
+/**
+ * Скільки учнів у кожному класі зараз (без вибулих). Список класу — це всі
+ * учні, тож саме це число і є розміром класу.
+ */
+export async function countStudentsByClass(): Promise<Map<string, number>> {
+  const rows = await fetchAllPages<{ class_id: string }>(
+    (start, end) =>
+      supabase.from('students').select('class_id').eq('is_active', true).order('id').range(start, end),
+    'Не вдалося порахувати учнів у класах.',
+  )
+  const counts = new Map<string, number>()
+  for (const row of rows) counts.set(row.class_id, (counts.get(row.class_id) ?? 0) + 1)
+  return counts
 }

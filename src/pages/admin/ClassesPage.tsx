@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Info, Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { createClass, deleteClass, setClassTeacher, setTotalStudents } from '@/api/classes'
+import { createClass, deleteClass, setClassTeacher } from '@/api/classes'
+import { countStudentsByClass } from '@/api/students'
 import { listClasses } from '@/api/classes'
 import { listStaff } from '@/api/profiles'
 import { getSettings } from '@/api/settings'
@@ -45,10 +46,11 @@ import type { Class } from '@/types/database'
 const NO_TEACHER = 'none'
 
 /**
- * Класи: розміри й керівники.
+ * Класи й керівники.
  *
- * classes.total_students — те саме число, без якого coverage_class_pct
- * лишається порожнім, а питання «яку частку класу охоплено» не має відповіді.
+ * Розмір класу ніхто не вписує: список класу — це всі учні, тож кількість
+ * береться зі списку. Колонка classes.total_students лишилася в схемі, але
+ * не використовується — двох чисел, що можуть розійтися, більше немає.
  */
 export default function ClassesPage() {
   const queryClient = useQueryClient()
@@ -56,9 +58,7 @@ export default function ClassesPage() {
   const isSuperadmin = role === 'superadmin'
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
-  const [newSize, setNewSize] = useState('')
   const [toDelete, setToDelete] = useState<Class | null>(null)
-  const [sizes, setSizes] = useState<Record<string, string>>({})
 
   const settingsQuery = useQuery({ queryKey: qk.settings(), queryFn: getSettings })
   const year = settingsQuery.data?.current_year
@@ -70,6 +70,7 @@ export default function ClassesPage() {
   })
 
   const staffQuery = useQuery({ queryKey: ['profiles', 'staff'], queryFn: listStaff })
+  const countsQuery = useQuery({ queryKey: qk.studentCounts(), queryFn: countStudentsByClass })
 
   const teachers = useMemo(
     () => (staffQuery.data ?? []).filter((p) => p.role === 'teacher' && p.status === 'active'),
@@ -80,15 +81,6 @@ export default function ClassesPage() {
     await queryClient.invalidateQueries({ queryKey: ['classes'] })
     await queryClient.invalidateQueries({ queryKey: ['my-class'] })
   }
-
-  const saveSize = useMutation({
-    mutationFn: ({ id, size }: { id: string; size: number | null }) => setTotalStudents(id, size),
-    onSuccess: async () => {
-      await invalidate()
-      toast.success('Розмір класу збережено')
-    },
-    onError: (err) => toast.error(humanError(err)),
-  })
 
   const assignTeacher = useMutation({
     mutationFn: ({ id, teacherId }: { id: string; teacherId: string | null }) =>
@@ -105,14 +97,12 @@ export default function ClassesPage() {
       createClass({
         name: newName.trim(),
         academic_year: year!,
-        total_students: newSize.trim() ? Number(newSize) : null,
       }),
     onSuccess: async () => {
       await invalidate()
       toast.success('Клас створено')
       setCreateOpen(false)
       setNewName('')
-      setNewSize('')
     },
     onError: (err) => toast.error(humanError(err)),
   })
@@ -131,7 +121,7 @@ export default function ClassesPage() {
   })
 
   const classes = classesQuery.data ?? []
-  const withoutSize = classes.filter((item) => item.total_students === null)
+  const studentsIn = (classId: string) => countsQuery.data?.get(classId) ?? 0
 
   if (settingsQuery.isPending || classesQuery.isPending) return <LoadingState />
   if (settingsQuery.error) return <ErrorState error={settingsQuery.error} />
@@ -141,7 +131,7 @@ export default function ClassesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Класи"
-        description={`Навчальний рік ${year}. Розмір класу потрібен, щоб рахувати охоплення.`}
+        description={`Навчальний рік ${year}. Учнів у класі — за списком, який веде класний керівник.`}
         actions={
           <>
             <ExportButton
@@ -154,7 +144,7 @@ export default function ClassesPage() {
                   header: 'Керівник',
                   value: (c) => teachers.find((t) => t.id === c.teacher_id)?.full_name ?? '',
                 },
-                { header: 'Учнів у класі', value: (c) => c.total_students ?? '' },
+                { header: 'Учнів у класі', value: (c) => studentsIn(c.id) },
               ]}
             />
             {isSuperadmin ? (
@@ -166,17 +156,6 @@ export default function ClassesPage() {
           </>
         }
       />
-
-      {withoutSize.length > 0 ? (
-        <div className="flex items-start gap-2 rounded-lg border border-dashed p-3 text-sm">
-          <Info className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden />
-          <p>
-            Не вказано кількість учнів для: {withoutSize.map((item) => item.name).join(', ')}.
-            Поки поле порожнє, у дашбордах не рахується відсоток «харчуються від усього класу» —
-            система знає лише тих, кого внесли до реєстру харчування.
-          </p>
-        </div>
-      ) : null}
 
       {classes.length === 0 ? (
         <EmptyState
@@ -190,7 +169,7 @@ export default function ClassesPage() {
               <TableRow>
                 <TableHead>Клас</TableHead>
                 <TableHead className="w-64">Класний керівник</TableHead>
-                <TableHead className="w-40">Учнів у класі</TableHead>
+                <TableHead className="w-32 text-right">Учнів у класі</TableHead>
                 {isSuperadmin ? <TableHead className="w-16" /> : null}
               </TableRow>
             </TableHeader>
@@ -222,26 +201,8 @@ export default function ClassesPage() {
                       </SelectContent>
                     </Select>
                   </TableCell>
-                  <TableCell>
-                    <Input
-                      type="number"
-                      min={0}
-                      className="w-28"
-                      placeholder="не вказано"
-                      value={sizes[item.id] ?? (item.total_students?.toString() ?? '')}
-                      onChange={(e) => setSizes((s) => ({ ...s, [item.id]: e.target.value }))}
-                      onBlur={(e) => {
-                        const raw = e.target.value.trim()
-                        const next = raw === '' ? null : Number(raw)
-                        if (next !== null && (!Number.isInteger(next) || next < 0)) {
-                          toast.error('Кількість учнів — ціле невід’ємне число.')
-                          return
-                        }
-                        if (next !== item.total_students) {
-                          saveSize.mutate({ id: item.id, size: next })
-                        }
-                      }}
-                    />
+                  <TableCell className="text-right tabular-nums">
+                    {countsQuery.isLoading ? '…' : studentsIn(item.id)}
                   </TableCell>
                   {isSuperadmin ? (
                     <TableCell>
@@ -280,18 +241,6 @@ export default function ClassesPage() {
                 placeholder="7-А"
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="class-size">Учнів у класі</Label>
-              <Input
-                id="class-size"
-                type="number"
-                min={0}
-                className="max-w-32"
-                placeholder="не вказано"
-                value={newSize}
-                onChange={(e) => setNewSize(e.target.value)}
               />
             </div>
           </div>

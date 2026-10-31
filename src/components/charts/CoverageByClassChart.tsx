@@ -2,7 +2,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -14,28 +13,21 @@ import { ChartTooltip } from './ChartTooltip'
 
 export interface CoveragePoint {
   class_name: string
-  /** Скільки з тих, хто харчується, замовили цього дня */
-  registered_pct: number | null
-  /** Скільки з усього класу харчується взагалі */
-  class_pct: number | null
+  /** яка частка класу замовила цього дня */
+  pct: number | null
+  ordered: number
+  /** учнів у класі (за списком) */
+  registered: number
 }
 
 /**
- * Два різні відсотки охоплення поруч.
- *
- * Плутати їх не можна, тому підписи в легенді розгорнуті до цілого речення,
- * а не «охоплення 1 / охоплення 2». Обидва — відсотки, тож спільна вісь тут
- * законна: це одна шкала 0–100, а не дві різні величини.
+ * Охоплення по класах за день: яка частка класу замовила. Список класу — це
+ * всі учні, тож відсоток один і рахується від усього класу.
  */
 export function CoverageByClassChart({ data }: { data: CoveragePoint[] }) {
   return (
-    <ResponsiveContainer width="100%" height={Math.max(220, data.length * 44 + 60)}>
-      <BarChart
-        data={data}
-        layout="vertical"
-        barGap={MARK.barGap}
-        margin={{ top: 8, right: 16, bottom: 0, left: 8 }}
-      >
+    <ResponsiveContainer width="100%" height={Math.max(220, data.length * 32 + 60)}>
+      <BarChart data={data} layout="vertical" margin={{ top: 8, right: 16, bottom: 0, left: 8 }}>
         <CartesianGrid {...GRID_PROPS} vertical horizontal={false} />
         <XAxis
           type="number"
@@ -50,41 +42,24 @@ export function CoverageByClassChart({ data }: { data: CoveragePoint[] }) {
           content={
             <ChartTooltip
               rows={(payload) =>
-                payload.map((entry) => ({
-                  name:
-                    entry.dataKey === 'registered_pct'
-                      ? 'Замовили з тих, хто харчується'
-                      : 'Харчуються з усього класу',
-                  value: formatPercent(entry.value ?? null),
-                  color: entry.color,
-                }))
+                payload.map((entry) => {
+                  const point = entry.payload as CoveragePoint | undefined
+                  return {
+                    name: 'Замовили',
+                    value: point
+                      ? `${point.ordered} з ${point.registered} (${formatPercent(point.pct)})`
+                      : formatPercent(entry.value ?? null),
+                    color: entry.color,
+                  }
+                })
               }
             />
           }
         />
-        <Legend
-          verticalAlign="top"
-          align="left"
-          height={40}
-          formatter={(value) => (
-            <span className="text-xs text-muted-foreground">
-              {value === 'registered_pct'
-                ? 'Замовили цього дня — % від тих, хто харчується'
-                : 'Харчуються — % від усього класу'}
-            </span>
-          )}
-        />
         <Bar
           {...NO_ANIMATION}
-          dataKey="registered_pct"
+          dataKey="pct"
           fill={SERIES.one}
-          maxBarSize={MARK.maxBarSize}
-          radius={[0, 4, 4, 0]}
-        />
-        <Bar
-          {...NO_ANIMATION}
-          dataKey="class_pct"
-          fill={SERIES.two}
           maxBarSize={MARK.maxBarSize}
           radius={[0, 4, 4, 0]}
         />

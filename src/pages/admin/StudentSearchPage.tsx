@@ -71,8 +71,8 @@ export default function StudentSearchPage() {
               { header: 'Клас', value: (s) => s.classes?.name ?? '' },
               { header: 'Пільга', value: (s) => s.is_privileged },
               { header: 'Має логін', value: (s) => Boolean(s.profile_id) },
-              { header: 'Харчується з', value: (s) => s.enrolled_from },
-              { header: 'У реєстрі', value: (s) => s.is_active },
+              { header: 'У класі з', value: (s) => s.enrolled_from },
+              { header: 'Вибув', value: (s) => !s.is_active },
             ]}
           />
         }
@@ -117,7 +117,7 @@ export default function StudentSearchPage() {
       {debounced.length >= MIN_LENGTH && !searchQuery.isPending && results.length === 0 ? (
         <EmptyState
           title="Нікого не знайдено"
-          hint="Перевірте написання. У реєстрі є лише ті, хто харчується в школі."
+          hint="Перевірте написання прізвища або імені."
         />
       ) : null}
 
@@ -130,7 +130,7 @@ export default function StudentSearchPage() {
                 <TableHead>Клас</TableHead>
                 <TableHead>Пільга</TableHead>
                 <TableHead>Логін</TableHead>
-                <TableHead>Харчується з</TableHead>
+                <TableHead>У класі з</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>

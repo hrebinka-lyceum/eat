@@ -7,10 +7,14 @@
 // ---------------------------------------------------------------------------
 import { compareClassNames } from './grades'
 
+// Список класу — це всі учні класу (і ті, хто не харчується), тож розмір
+// класу — це кількість учнів у списку на день (students_registered), а не
+// число, яке окремо вписувала адміністрація. Охоплення одне: яка частка
+// класу замовила.
+
 export interface CoverageDay {
   class_id: string
   class_name: string
-  total_students: number | null
   students_registered: number
   students_ordered: number
 }
@@ -18,8 +22,7 @@ export interface CoverageDay {
 export interface CoverageClass {
   class_id: string
   class_name: string
-  total_students: number | null
-  /** скільки в реєстрі за останній день періоду — найсвіжіше число */
+  /** учнів у класі за останній день періоду — найсвіжіше число */
   registered: number
   ordered_sum: number
   registered_sum: number
@@ -34,7 +37,6 @@ export function aggregateCoverage(days: CoverageDay[]): CoverageClass[] {
     const current = map.get(day.class_id) ?? {
       class_id: day.class_id,
       class_name: day.class_name,
-      total_students: day.total_students,
       registered: day.students_registered,
       ordered_sum: 0,
       registered_sum: 0,
@@ -44,7 +46,6 @@ export function aggregateCoverage(days: CoverageDay[]): CoverageClass[] {
     current.registered_sum += day.students_registered
     current.days += 1
     current.registered = day.students_registered
-    current.total_students = day.total_students
     map.set(day.class_id, current)
   }
 
@@ -52,17 +53,12 @@ export function aggregateCoverage(days: CoverageDay[]): CoverageClass[] {
 }
 
 /**
- * Скільки з тих, хто харчується, замовили. Рахується від сум за період,
- * а не як середнє денних відсотків: інакше день з одним присутнім важив би
+ * Охоплення: яка частка класу замовила. Рахується від сум за період, а не
+ * як середнє денних відсотків: інакше день з одним присутнім важив би
  * стільки ж, скільки повний.
  */
 export function coverageRegisteredPct(row: CoverageClass): number | null {
   return row.registered_sum === 0 ? null : (row.ordered_sum / row.registered_sum) * 100
-}
-
-/** Яка частка класу взагалі в реєстрі харчування. */
-export function coverageClassPct(row: CoverageClass): number | null {
-  return row.total_students ? (row.registered / row.total_students) * 100 : null
 }
 
 export function coverageAveragePerDay(row: CoverageClass): number {
@@ -70,43 +66,22 @@ export function coverageAveragePerDay(row: CoverageClass): number {
 }
 
 export interface CoverageTotals {
-  total_students: number
   registered: number
   ordered_sum: number
   registered_sum: number
   days: number
-  /** класи без указаного розміру — їх не можна брати лише в чисельник */
-  unsized: CoverageClass[]
 }
 
 export function coverageTotals(rows: CoverageClass[]): CoverageTotals {
   return rows.reduce<CoverageTotals>(
     (acc, row) => ({
-      total_students: acc.total_students + (row.total_students ?? 0),
       registered: acc.registered + row.registered,
       ordered_sum: acc.ordered_sum + row.ordered_sum,
       registered_sum: acc.registered_sum + row.registered_sum,
       days: Math.max(acc.days, row.days),
-      unsized: row.total_students === null ? [...acc.unsized, row] : acc.unsized,
     }),
-    {
-      total_students: 0,
-      registered: 0,
-      ordered_sum: 0,
-      registered_sum: 0,
-      days: 0,
-      unsized: [],
-    },
+    { registered: 0, ordered_sum: 0, registered_sum: 0, days: 0 },
   )
-}
-
-/** Підсумковий відсоток реєстру — лише по класах із відомим розміром. */
-export function coverageTotalClassPct(rows: CoverageClass[]): number | null {
-  const sized = rows.filter((row) => row.total_students !== null)
-  const total = sized.reduce((sum, row) => sum + (row.total_students ?? 0), 0)
-  if (total === 0) return null
-  const registered = sized.reduce((sum, row) => sum + row.registered, 0)
-  return (registered / total) * 100
 }
 
 export function coverageTotalRegisteredPct(totals: CoverageTotals): number | null {

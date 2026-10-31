@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { FileDown, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { mealOrders } from '@/api/reports'
+import { classCoverage } from '@/api/stats'
 import { listClasses } from '@/api/classes'
 import { getSettings } from '@/api/settings'
 import { listPrivilegeCategories } from '@/api/privilegeCategories'
@@ -60,6 +61,13 @@ export default function OrganizationReport() {
     queryKey: qk.reportSettings(),
     queryFn: getReportSettings,
   })
+  // «Учнів у класі» — зі списку класу: найбільше за період число з охоплення.
+  const coverageQuery = useQuery({
+    queryKey: qk.classCoverage(from, to),
+    queryFn: () => classCoverage(from, to),
+    enabled: validPeriod,
+  })
+
   const ordersQuery = useQuery({
     queryKey: qk.mealOrders(from, to),
     queryFn: () => mealOrders(from, to),
@@ -67,15 +75,26 @@ export default function OrganizationReport() {
     placeholderData: (previous) => previous,
   })
 
+  const classesWithSize = useMemo(() => {
+    const size = new Map<string, number>()
+    for (const row of coverageQuery.data ?? []) {
+      size.set(row.class_id, Math.max(size.get(row.class_id) ?? 0, row.students_registered))
+    }
+    return (classesQuery.data ?? []).map((klass) => ({
+      ...klass,
+      total_students: size.get(klass.id) ?? null,
+    }))
+  }, [classesQuery.data, coverageQuery.data])
+
   const report = useMemo(
     () =>
       buildOrganizationReport(
         ordersQuery.data ?? [],
-        classesQuery.data ?? [],
+        classesWithSize,
         categoriesQuery.data ?? [],
         { currentYear: settingsQuery.data?.current_year ?? '' },
       ),
-    [ordersQuery.data, classesQuery.data, categoriesQuery.data, settingsQuery.data],
+    [ordersQuery.data, classesWithSize, categoriesQuery.data, settingsQuery.data],
   )
 
   const director = reportSettingsQuery.data
@@ -96,12 +115,14 @@ export default function OrganizationReport() {
 
   const loading =
     ordersQuery.isLoading ||
+    coverageQuery.isLoading ||
     classesQuery.isLoading ||
     settingsQuery.isLoading ||
     categoriesQuery.isLoading ||
     reportSettingsQuery.isLoading
   const error =
     ordersQuery.error ??
+    coverageQuery.error ??
     classesQuery.error ??
     settingsQuery.error ??
     categoriesQuery.error ??
