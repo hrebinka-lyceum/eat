@@ -14,7 +14,7 @@ vi.mock('@/api/students', async (importOriginal) => ({
 }))
 vi.mock('@/api/privilegeCategories', () => ({ listPrivilegeCategories }))
 
-const { AddStudentDialog } = await import('@/pages/teacher/components/AddStudentDialog')
+const { AddStudentDialog } = await import('@/components/students/AddStudentDialog')
 
 beforeEach(() => {
   vi.clearAllMocks()

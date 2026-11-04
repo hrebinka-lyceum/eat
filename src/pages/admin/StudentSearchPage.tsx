@@ -1,11 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { KeyRound, Search, Star } from 'lucide-react'
+import { KeyRound, Search, Star, UserPlus } from 'lucide-react'
 import { searchStudents, type StudentWithClass } from '@/api/students'
+import { listClasses } from '@/api/classes'
+import { getSettings } from '@/api/settings'
+import { qk } from '@/lib/queryKeys'
 import { csvFilename } from '@/lib/csv'
 import { formatDate, fullName } from '@/lib/format'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
+import { AddStudentDialog } from '@/components/students/AddStudentDialog'
+import { Button } from '@/components/ui/button'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -27,13 +32,23 @@ const MIN_LENGTH = 2
  * Пошук учня по всій школі — головний інструмент адміністратора.
  *
  * Пошук серверний (ilike), бо шукати доводиться серед усіх класів, а не
- * в уже завантаженому списку.
+ * в уже завантаженому списку. Не знайшли — тут же можна додати учня,
+ * обравши клас.
  */
 export default function StudentSearchPage() {
   const [term, setTerm] = useState('')
   const [debounced, setDebounced] = useState('')
   const [includeInactive, setIncludeInactive] = useState(false)
   const [selected, setSelected] = useState<StudentWithClass | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
+
+  const settingsQuery = useQuery({ queryKey: qk.settings(), queryFn: getSettings })
+  const year = settingsQuery.data?.current_year
+  const classesQuery = useQuery({
+    queryKey: qk.classes(year),
+    queryFn: () => listClasses(year!),
+    enabled: Boolean(year),
+  })
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebounced(term.trim()), 300)
@@ -60,21 +75,27 @@ export default function StudentSearchPage() {
     <div className="space-y-6">
       <PageHeader
         title="Пошук учня"
-        description="По всій школі. Звідси ж — замовлення за учня, скасування, пільги й переведення."
+        description="По всій школі. Звідси ж — замовлення за учня, скасування, пільги, переведення й додавання нового учня."
         actions={
-          <ExportButton
-            rows={results}
-            filename={csvFilename('пошук-учнів')}
-            columns={[
-              { header: 'Прізвище', value: (s) => s.last_name },
-              { header: 'Ім’я', value: (s) => s.first_name },
-              { header: 'Клас', value: (s) => s.classes?.name ?? '' },
-              { header: 'Пільга', value: (s) => s.is_privileged },
-              { header: 'Має логін', value: (s) => Boolean(s.profile_id) },
-              { header: 'У класі з', value: (s) => s.enrolled_from },
-              { header: 'Вибув', value: (s) => !s.is_active },
-            ]}
-          />
+          <>
+            <ExportButton
+              rows={results}
+              filename={csvFilename('пошук-учнів')}
+              columns={[
+                { header: 'Прізвище', value: (s) => s.last_name },
+                { header: 'Ім’я', value: (s) => s.first_name },
+                { header: 'Клас', value: (s) => s.classes?.name ?? '' },
+                { header: 'Пільга', value: (s) => s.is_privileged },
+                { header: 'Має логін', value: (s) => Boolean(s.profile_id) },
+                { header: 'У класі з', value: (s) => s.enrolled_from },
+                { header: 'Вибув', value: (s) => !s.is_active },
+              ]}
+            />
+            <Button size="sm" onClick={() => setAddOpen(true)}>
+              <UserPlus className="size-4" aria-hidden />
+              Додати учня
+            </Button>
+          </>
         }
       />
 
@@ -117,7 +138,7 @@ export default function StudentSearchPage() {
       {debounced.length >= MIN_LENGTH && !searchQuery.isPending && results.length === 0 ? (
         <EmptyState
           title="Нікого не знайдено"
-          hint="Перевірте написання прізвища або імені."
+          hint="Перевірте написання прізвища або імені. Якщо учня справді немає — додайте його кнопкою «Додати учня»."
         />
       ) : null}
 
@@ -175,6 +196,11 @@ export default function StudentSearchPage() {
       ) : null}
 
       <AdminStudentDialog student={selected} onOpenChange={() => setSelected(null)} />
+      <AddStudentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        classes={classesQuery.data ?? []}
+      />
     </div>
   )
 }

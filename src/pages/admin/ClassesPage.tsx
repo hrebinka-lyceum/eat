@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { createClass, deleteClass, setClassTeacher } from '@/api/classes'
 import { countStudentsByClass } from '@/api/students'
@@ -14,6 +14,7 @@ import { csvFilename } from '@/lib/csv'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
+import { AddStudentDialog } from '@/components/students/AddStudentDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -46,7 +47,8 @@ import type { Class } from '@/types/database'
 const NO_TEACHER = 'none'
 
 /**
- * Класи й керівники.
+ * Класи й керівники. Звідси ж адміністрація додає учня до класу — зокрема
+ * до класу, якому керівника ще не призначено.
  *
  * Розмір класу ніхто не вписує: список класу — це всі учні, тож кількість
  * береться зі списку. Колонка classes.total_students лишилася в схемі, але
@@ -59,6 +61,10 @@ export default function ClassesPage() {
   const [createOpen, setCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [toDelete, setToDelete] = useState<Class | null>(null)
+  // Клас лишається й після закриття: інакше під час анімації закриття
+  // у вікні на мить з'явився б вибір класу.
+  const [addTo, setAddTo] = useState<Class | null>(null)
+  const [addOpen, setAddOpen] = useState(false)
 
   const settingsQuery = useQuery({ queryKey: qk.settings(), queryFn: getSettings })
   const year = settingsQuery.data?.current_year
@@ -131,7 +137,7 @@ export default function ClassesPage() {
     <div className="space-y-6">
       <PageHeader
         title="Класи"
-        description={`Навчальний рік ${year}. Учнів у класі — за списком, який веде класний керівник.`}
+        description={`Навчальний рік ${year}. Учнів у класі — за списком класу; додати учня можна кнопкою в рядку класу.`}
         actions={
           <>
             <ExportButton
@@ -170,7 +176,9 @@ export default function ClassesPage() {
                 <TableHead>Клас</TableHead>
                 <TableHead className="w-64">Класний керівник</TableHead>
                 <TableHead className="w-32 text-right">Учнів у класі</TableHead>
-                {isSuperadmin ? <TableHead className="w-16" /> : null}
+                <TableHead className={isSuperadmin ? 'w-24' : 'w-14'}>
+                  <span className="sr-only">Дії</span>
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -204,18 +212,33 @@ export default function ClassesPage() {
                   <TableCell className="text-right tabular-nums">
                     {countsQuery.isLoading ? '…' : studentsIn(item.id)}
                   </TableCell>
-                  {isSuperadmin ? (
-                    <TableCell>
+                  <TableCell>
+                    <div className="flex justify-end gap-1">
                       <Button
                         variant="ghost"
                         size="icon-sm"
-                        aria-label={`Видалити клас ${item.name}`}
-                        onClick={() => setToDelete(item)}
+                        aria-label={`Додати учня до ${item.name}`}
+                        title="Додати учня"
+                        onClick={() => {
+                          setAddTo(item)
+                          setAddOpen(true)
+                        }}
                       >
-                        <Trash2 className="size-4" aria-hidden />
+                        <UserPlus className="size-4" aria-hidden />
                       </Button>
-                    </TableCell>
-                  ) : null}
+                      {isSuperadmin ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Видалити клас ${item.name}`}
+                          title="Видалити клас"
+                          onClick={() => setToDelete(item)}
+                        >
+                          <Trash2 className="size-4" aria-hidden />
+                        </Button>
+                      ) : null}
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -257,6 +280,13 @@ export default function ClassesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AddStudentDialog
+        open={addOpen}
+        onOpenChange={setAddOpen}
+        classId={addTo?.id}
+        className={addTo?.name}
+      />
 
       <ConfirmDialog
         open={toDelete !== null}

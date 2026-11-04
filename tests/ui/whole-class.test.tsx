@@ -24,7 +24,8 @@ vi.mock('@/api/classes', () => ({
   setClassTeacher: vi.fn(),
 }))
 vi.mock('@/api/profiles', () => ({ listStaff: api.listStaff }))
-vi.mock('@/api/students', () => ({
+vi.mock('@/api/students', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/api/students')>()),
   countStudentsByClass: api.countStudentsByClass,
   listStudentsOfClass: api.listStudentsOfClass,
 }))

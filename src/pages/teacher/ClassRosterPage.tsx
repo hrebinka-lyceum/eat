@@ -29,7 +29,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { PublishedDaySelect } from './components/PublishedDaySelect'
-import { AddStudentDialog } from './components/AddStudentDialog'
+import { AddStudentDialog } from '@/components/students/AddStudentDialog'
 import { StudentCardDialog } from './components/StudentCardDialog'
 import type { Student } from '@/types/database'
 
