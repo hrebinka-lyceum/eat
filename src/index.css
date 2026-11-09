@@ -23,6 +23,7 @@
     --color-chart-1: var(--chart-1);
     --color-ring: var(--ring);
     --color-input: var(--input);
+    --color-control-border: var(--control-border);
     --color-border: var(--border);
     --color-destructive: var(--destructive);
     --color-accent-foreground: var(--accent-foreground);
@@ -66,6 +67,10 @@
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
     --input: oklch(0.922 0 0);
+    /* Рамка чекбокса. Колір поля вводу (--input) на білому дає контраст 1,2:1 —
+       порожній чекбокс майже не видно. Для елементів керування потрібно
+       щонайменше 3:1 (WCAG 1.4.11); тут 4,7:1. Перевіряє tests/lib/control-contrast. */
+    --control-border: oklch(0.556 0 0);
     --ring: oklch(0.708 0 0);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
@@ -109,6 +114,9 @@
     --destructive: oklch(0.704 0.191 22.216);
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
+    /* У темній темі рамка світліша за фон, і непрозора: напівпрозора
+       ледь проступала на картці. Контраст 6,9:1 до картки. */
+    --control-border: oklch(0.708 0 0);
     --ring: oklch(0.556 0 0);
     --chart-1: oklch(0.87 0 0);
     --chart-2: oklch(0.556 0 0);
@@ -190,6 +198,7 @@
     --accent: oklch(0.97 0 0);
     --accent-foreground: oklch(0.205 0 0);
     --border: oklch(0.922 0 0);
+    --control-border: oklch(0.556 0 0);
     --series-1: #2a78d6;
     --series-2: #eb6834;
     --series-grid: #e1e0d9;
