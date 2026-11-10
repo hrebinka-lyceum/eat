@@ -251,16 +251,53 @@ export interface Database {
           menu_date: string
           dish_id: string
           price: number | null
+          /** null — основне меню дня; інакше — спеціальне меню */
+          special_menu_id: string | null
         }
         Insert: {
           id?: string
           menu_date: string
           dish_id: string
           price?: number | null
+          special_menu_id?: string | null
         }
         Update: {
           price?: number | null
         }
+        Relationships: []
+      }
+      /** Спеціальне меню дня для окремих класів — замінює для них основне. */
+      special_menus: {
+        Row: {
+          id: string
+          menu_date: string
+          /** необов'язкова назва («Дієтичне»); порожньо — «Спеціальне меню» */
+          name: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          menu_date: string
+          name?: string
+        }
+        // Змінюється лише назва: перенести меню на інший день не можна.
+        Update: {
+          name?: string
+        }
+        Relationships: []
+      }
+      special_menu_classes: {
+        Row: {
+          special_menu_id: string
+          /** заповнює тригер з special_menus */
+          menu_date: string
+          class_id: string
+        }
+        Insert: {
+          special_menu_id: string
+          class_id: string
+        }
+        Update: never
         Relationships: []
       }
       orders: {
@@ -273,6 +310,8 @@ export interface Database {
           after_cutoff: boolean
           created_by: string | null
           created_at: string
+          /** зліпок: за яким меню (null — основне) */
+          special_menu_id: string | null
         }
         // Створюються лише через place_order; delete дозволений адміністрації.
         Insert: never
@@ -396,9 +435,15 @@ export interface Database {
         Args: { p_from: string; p_to: string }
         Returns: number
       }
+      /** Копіює основне меню й усі спеціальні (з класами й вартістю). */
       copy_menu: {
         Args: { p_source: string; p_target: string }
         Returns: number
+      }
+      /** Створити (без p_id) або змінити спеціальне меню: назва + класи. */
+      save_special_menu: {
+        Args: { p_menu_date: string; p_name: string; p_class_ids: string[]; p_id?: string | null }
+        Returns: string
       }
       promote_academic_year: {
         Args: {
@@ -493,6 +538,7 @@ export type Student = Tables<'students'>
 export type Dish = Tables<'dishes'>
 export type MenuDay = Tables<'menu_days'>
 export type MenuItem = Tables<'menu_items'>
+export type SpecialMenu = Tables<'special_menus'>
 export type Order = Tables<'orders'>
 export type OrderItem = Tables<'order_items'>
 export type Settings = Tables<'settings'>

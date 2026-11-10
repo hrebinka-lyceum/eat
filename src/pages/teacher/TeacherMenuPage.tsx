@@ -1,17 +1,20 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { listMenuDays, listMenuItemsPlainForDates, type MenuItemPlain } from '@/api/menu'
+import { getClassMenus, listMenuDays } from '@/api/menu'
+import { useMyClass } from '@/hooks/useMyClass'
 import { qk } from '@/lib/queryKeys'
 import { shiftIso } from '@/lib/dates'
 import {
   formatCutoff,
   formatDateWithWeekday,
+  specialMenuLabel,
   toIsoDate,
 } from '@/lib/format'
 import { csvFilename } from '@/lib/csv'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 const DAYS_AHEAD = 13
@@ -24,10 +27,14 @@ const DAYS_AHEAD = 13
  * неопублікований день керівник однаково не зможе — is_before_cutoff()
  * вимагає published. Меню в роботі — справа їдальні та адміністрації.
  *
- * Цін тут немає навіть у запиті: listMenuItemsPlainForDates їх не читає.
+ * Меню — саме класу керівника: якщо клас цього дня в спеціальному меню,
+ * показуємо його, а не основне.
+ *
+ * Цін тут немає навіть у запиті: getClassMenus їх не читає.
  * Довідник страв сервер віддає всім, тож не показати ціну — робота фронтенду.
  */
 export default function TeacherMenuPage() {
+  const { myClass, isPending: classPending, error: classError } = useMyClass()
   const from = toIsoDate()
   const to = shiftIso(from, DAYS_AHEAD)
 
@@ -39,33 +46,28 @@ export default function TeacherMenuPage() {
   const dates = useMemo(() => (daysQuery.data ?? []).map((day) => day.menu_date), [daysQuery.data])
 
   const itemsQuery = useQuery({
-    queryKey: qk.menuItemsPlainForDates(dates),
-    queryFn: () => listMenuItemsPlainForDates(dates),
-    enabled: daysQuery.isSuccess,
+    queryKey: qk.classMenus(dates, myClass?.id ?? ''),
+    queryFn: () => getClassMenus(dates, myClass!.id),
+    enabled: daysQuery.isSuccess && Boolean(myClass),
   })
 
-  const byDate = useMemo(() => {
-    const map = new Map<string, MenuItemPlain[]>()
-    for (const item of itemsQuery.data ?? []) {
-      const list = map.get(item.menu_date) ?? []
-      list.push(item)
-      map.set(item.menu_date, list)
-    }
-    return map
-  }, [itemsQuery.data])
+  const menus = itemsQuery.data ?? {}
 
   const csvRows = useMemo(() => {
     return (daysQuery.data ?? []).flatMap((day) =>
-      (byDate.get(day.menu_date) ?? []).map((item) => ({
+      (itemsQuery.data?.[day.menu_date]?.items ?? []).map((item) => ({
         menu_date: day.menu_date,
         category: item.dishes.category,
         name: item.dishes.name,
       })),
     )
-  }, [daysQuery.data, byDate])
+  }, [daysQuery.data, itemsQuery.data])
 
   const days = daysQuery.data ?? []
-  const loading = daysQuery.isPending || (daysQuery.isSuccess && dates.length > 0 && itemsQuery.isPending)
+  const loading =
+    classPending ||
+    daysQuery.isPending ||
+    (daysQuery.isSuccess && dates.length > 0 && Boolean(myClass) && itemsQuery.isPending)
 
   return (
     <div className="space-y-6">
@@ -84,6 +86,7 @@ export default function TeacherMenuPage() {
         }
       />
 
+      {classError ? <ErrorState error={classError} /> : null}
       {daysQuery.error ? <ErrorState error={daysQuery.error} /> : null}
       {itemsQuery.error ? <ErrorState error={itemsQuery.error} /> : null}
       {loading ? <LoadingState /> : null}
@@ -97,7 +100,8 @@ export default function TeacherMenuPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         {days.map((day) => {
-          const items = byDate.get(day.menu_date) ?? []
+          const special = menus[day.menu_date]?.special ?? null
+          const items = menus[day.menu_date]?.items ?? []
           const names = items
             .map((item) => item.dishes.name)
             .sort((a, b) => a.localeCompare(b, 'uk'))
@@ -105,7 +109,10 @@ export default function TeacherMenuPage() {
           return (
             <Card key={day.menu_date}>
               <CardHeader>
-                <CardTitle className="text-base">{formatDateWithWeekday(day.menu_date)}</CardTitle>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-base">{formatDateWithWeekday(day.menu_date)}</CardTitle>
+                  {special ? <Badge variant="secondary">{specialMenuLabel(special.name)}</Badge> : null}
+                </div>
                 <p className="text-sm text-muted-foreground">
                   Замовлення приймаються до {formatCutoff(day.cutoff_at)}
                 </p>

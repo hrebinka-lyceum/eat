@@ -9,7 +9,7 @@ const api = vi.hoisted(() => ({
   listClasses: vi.fn(),
   listStudentsOfClass: vi.fn(),
   listMenuDays: vi.fn(),
-  listMenuItemsPlain: vi.fn(),
+  getClassMenu: vi.fn(),
   areOrdersOpen: vi.fn(),
   listOrdersPlainOfClass: vi.fn(),
   placeOrder: vi.fn(),
@@ -20,7 +20,7 @@ vi.mock('@/api/classes', () => ({ listClasses: api.listClasses }))
 vi.mock('@/api/students', () => ({ listStudentsOfClass: api.listStudentsOfClass }))
 vi.mock('@/api/menu', () => ({
   listMenuDays: api.listMenuDays,
-  listMenuItemsPlain: api.listMenuItemsPlain,
+  getClassMenu: api.getClassMenu,
   areOrdersOpen: api.areOrdersOpen,
 }))
 vi.mock('@/api/orders', () => ({
@@ -48,10 +48,13 @@ beforeEach(() => {
   ])
   // Завтрашній день першим у списку — а показати має сьогоднішній.
   api.listMenuDays.mockResolvedValue([day(today), day(shiftIso(today, 1))])
-  api.listMenuItemsPlain.mockResolvedValue([
-    { id: 'mi1', menu_date: today, dish_id: 'd1', dishes: { id: 'd1', name: 'Гречана каша', category: 'second' } },
-    { id: 'mi2', menu_date: today, dish_id: 'd2', dishes: { id: 'd2', name: 'Чай', category: 'second' } },
-  ])
+  api.getClassMenu.mockResolvedValue({
+    special: null,
+    items: [
+      { id: 'mi1', menu_date: today, dish_id: 'd1', special_menu_id: null, dishes: { id: 'd1', name: 'Гречана каша', category: 'second' } },
+      { id: 'mi2', menu_date: today, dish_id: 'd2', special_menu_id: null, dishes: { id: 'd2', name: 'Чай', category: 'second' } },
+    ],
+  })
   api.areOrdersOpen.mockResolvedValue(false)
   api.listStudentsOfClass.mockResolvedValue([
     student('s1', 'Бойко', 'Анна'),
@@ -103,7 +106,7 @@ describe('дозамовлення', () => {
   })
 
   it('без складеного блюда дозамовити не можна', async () => {
-    api.listMenuItemsPlain.mockResolvedValue([])
+    api.getClassMenu.mockResolvedValue({ special: null, items: [] })
     renderWithProviders(<ReorderPage />, { role: 'admin' })
     await chooseClass('7-А')
 
@@ -119,5 +122,24 @@ describe('дозамовлення', () => {
     await userEvent.type(screen.getByLabelText('Пошук у класі'), 'моро')
     expect(screen.queryByText('Бойко Анна')).not.toBeInTheDocument()
     expect(screen.getByText('Мороз Злата')).toBeInTheDocument()
+  })
+
+  // Склад залежить від класу: дозамовляючи в клас зі спецменю, адміністратор
+  // бачить саме його — і сервер покладе в замовлення саме його.
+  it('у класу зі спеціальним меню показує склад цього меню', async () => {
+    api.getClassMenu.mockImplementation(async (_date: string, classId: string) =>
+      classId === 'c1'
+        ? {
+            special: { id: 'sm1', name: 'Для 1–4 класів' },
+            items: [{ id: 's1', menu_date: today, dish_id: 'd9', special_menu_id: 'sm1', dishes: { id: 'd9', name: 'Сирники', category: 'second' } }],
+          }
+        : { special: null, items: [] },
+    )
+    renderWithProviders(<ReorderPage />, { role: 'admin' })
+    await chooseClass('1-А')
+
+    expect(await screen.findByText('Для 1–4 класів для 1-А на цей день')).toBeInTheDocument()
+    expect(screen.getByText('Сирники')).toBeInTheDocument()
+    expect(api.getClassMenu).toHaveBeenCalledWith(today, 'c1')
   })
 })

@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarOff, Clock, Info, UtensilsCrossed } from 'lucide-react'
 import { useStudentDay } from '@/hooks/useStudentDay'
-import { formatCutoffTime, formatDateWithWeekday } from '@/lib/format'
+import { formatCutoffTime, formatDateWithWeekday, specialMenuLabel } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingState } from '@/components/common/states'
 import { OrderedCard } from './components/OrderedCard'
@@ -17,7 +17,7 @@ import { OrderedCard } from './components/OrderedCard'
  */
 export default function StudentMenuPage() {
   const navigate = useNavigate()
-  const { student, day, items, order, ordersOpen, isPending, error } = useStudentDay()
+  const { student, day, items, special, order, ordersOpen, isPending, error } = useStudentDay()
 
   // Блюдо одне, склад — простий перелік компонентів.
   const components = useMemo(
@@ -88,7 +88,9 @@ export default function StudentMenuPage() {
         <div className="rounded-xl border p-4">
           <div className="flex items-center gap-2">
             <UtensilsCrossed className="size-5 text-muted-foreground" aria-hidden />
-            <p className="font-medium">Блюдо дня</p>
+            <p className="font-medium">
+              {special ? `${specialMenuLabel(special.name)} для твого класу` : 'Блюдо дня'}
+            </p>
           </div>
 
           <ul className="mt-3 space-y-1">
@@ -100,7 +102,9 @@ export default function StudentMenuPage() {
           </ul>
 
           <p className="mt-4 text-sm text-muted-foreground">
-            Блюдо одне на всіх — обирати нічого не треба. Просто скажи, чи будеш.
+            {special
+              ? 'Для твого класу цього дня окреме меню — обирати нічого не треба. Просто скажи, чи будеш.'
+              : 'Блюдо одне на всіх — обирати нічого не треба. Просто скажи, чи будеш.'}
           </p>
         </div>
       )}

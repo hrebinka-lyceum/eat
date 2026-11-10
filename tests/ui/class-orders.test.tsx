@@ -5,14 +5,14 @@ import { hasMoney, renderWithProviders } from '../helpers'
 
 const {
   getSettings, getClassOfTeacher, listStudentsOfClass,
-  listMenuDays, listMenuItemsPlain, areOrdersOpen,
+  listMenuDays, getClassMenu, areOrdersOpen,
   listOrdersPlainOfClass, placeOrder,
 } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   getClassOfTeacher: vi.fn(),
   listStudentsOfClass: vi.fn(),
   listMenuDays: vi.fn(),
-  listMenuItemsPlain: vi.fn(),
+  getClassMenu: vi.fn(),
   areOrdersOpen: vi.fn(),
   listOrdersPlainOfClass: vi.fn(),
   placeOrder: vi.fn(),
@@ -21,7 +21,7 @@ const {
 vi.mock('@/api/settings', () => ({ getSettings }))
 vi.mock('@/api/classes', () => ({ getClassOfTeacher }))
 vi.mock('@/api/students', () => ({ listStudentsOfClass }))
-vi.mock('@/api/menu', () => ({ listMenuDays, listMenuItemsPlain, areOrdersOpen }))
+vi.mock('@/api/menu', () => ({ listMenuDays, getClassMenu, areOrdersOpen }))
 vi.mock('@/api/orders', () => ({ listOrdersPlainOfClass, placeOrder }))
 
 const { default: ClassOrdersPage } = await import('@/pages/teacher/ClassOrdersPage')
@@ -36,7 +36,7 @@ const day = {
 }
 
 const item = (id: string, name: string, category: string) => ({
-  id, menu_date: DATE, dish_id: `d${id}`, dishes: { id: `d${id}`, name, category },
+  id, menu_date: DATE, dish_id: `d${id}`, special_menu_id: null, dishes: { id: `d${id}`, name, category },
 })
 
 // Блюдо дня — кілька компонентів, які беруться цілком.
@@ -72,7 +72,7 @@ beforeEach(() => {
   })
   listStudentsOfClass.mockResolvedValue(students)
   listMenuDays.mockResolvedValue([day])
-  listMenuItemsPlain.mockResolvedValue(items)
+  getClassMenu.mockResolvedValue({ special: null, items })
   areOrdersOpen.mockResolvedValue(true)
   listOrdersPlainOfClass.mockResolvedValue([])
   placeOrder.mockResolvedValue('order-1')
@@ -194,5 +194,30 @@ describe('замовлення за клас', () => {
     renderPage()
 
     expect(await screen.findByText(/За вами не закріплено клас/)).toBeInTheDocument()
+  })
+
+  // Клас у спеціальному меню: керівник бачить саме його і знає, що це не основне.
+  it('клас у спеціальному меню бачить його склад і назву', async () => {
+    getClassMenu.mockResolvedValue({
+      special: { id: 'sm1', name: 'Дієтичне' },
+      items: [item('s1', 'Рисова каша на воді', 'second'), item('s2', 'Компот', 'drink')],
+    })
+
+    renderWithProviders(<ClassOrdersPage />, { role: 'teacher' })
+
+    expect(await screen.findByText('Дієтичне для вашого класу на цей день')).toBeInTheDocument()
+    expect(screen.getByText('Компот · Рисова каша на воді')).toBeInTheDocument()
+    expect(getClassMenu).toHaveBeenCalledWith(DATE, 'c1')
+  })
+
+  it('порожнє спецменю — не пропонує замовляти й пояснює чому', async () => {
+    getClassMenu.mockResolvedValue({ special: { id: 'sm1', name: '' }, items: [] })
+
+    renderWithProviders(<ClassOrdersPage />, { role: 'teacher' })
+
+    expect(
+      await screen.findByText('Спеціальне меню для вашого класу на цей день ще не складено'),
+    ).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 })

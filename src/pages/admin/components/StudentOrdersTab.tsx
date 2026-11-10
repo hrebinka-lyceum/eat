@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, Clock, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { areOrdersOpen, listMenuDays, listMenuItemsPlain } from '@/api/menu'
+import { areOrdersOpen, getClassMenu, listMenuDays } from '@/api/menu'
 import { cancelOrder, listOrdersPlainOfStudent, placeOrder } from '@/api/orders'
 import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
@@ -11,8 +11,7 @@ import {
   MENU_STATUS_LABELS,
   formatCutoff,
   formatDateWithWeekday,
-  toIsoDate,
-} from '@/lib/format'
+  toIsoDate, specialMenuLabel } from '@/lib/format'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
 import { Button } from '@/components/ui/button'
@@ -51,11 +50,14 @@ export function StudentOrdersTab({ student }: { student: Student }) {
   const activeDate = date ?? daysQuery.data?.[0]?.menu_date ?? null
   const activeDay = daysQuery.data?.find((day) => day.menu_date === activeDate) ?? null
 
+  // Меню класу учня: спеціальне, якщо клас у ньому цього дня.
   const itemsQuery = useQuery({
-    queryKey: qk.menuItemsPlain(activeDate ?? ''),
-    queryFn: () => listMenuItemsPlain(activeDate!),
+    queryKey: qk.classMenu(activeDate ?? '', student.class_id),
+    queryFn: () => getClassMenu(activeDate!, student.class_id),
     enabled: Boolean(activeDate),
   })
+  const menuItems = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data])
+  const special = itemsQuery.data?.special ?? null
 
   const openQuery = useQuery({
     queryKey: qk.ordersOpen(activeDate ?? ''),
@@ -73,17 +75,14 @@ export function StudentOrdersTab({ student }: { student: Student }) {
   const willBeLate = openQuery.data === false
 
   const names = useMemo(
-    () =>
-      (itemsQuery.data ?? [])
-        .map((item) => item.dishes.name)
-        .sort((a, b) => a.localeCompare(b, 'uk')),
-    [itemsQuery.data],
+    () => menuItems.map((item) => item.dishes.name).sort((a, b) => a.localeCompare(b, 'uk')),
+    [menuItems],
   )
 
   const submit = useMutation({
     // Замовляється весь склад дня — блюдо неподільне.
     mutationFn: () =>
-      placeOrder(student.id, activeDate!, (itemsQuery.data ?? []).map((item) => item.id)),
+      placeOrder(student.id, activeDate!, menuItems.map((item) => item.id)),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['orders-of-student'] })
       await queryClient.invalidateQueries({ queryKey: ['orders-of-class'] })
@@ -174,16 +173,20 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                   </Alert>
                 ) : null}
 
-                {/* Блюдо одне на всіх: обирати нічого, лише подивитися склад. */}
+                {/* Блюдо одне на клас: обирати нічого, лише подивитися склад. */}
                 <div className="space-y-3 rounded-lg border p-3">
                   {itemsQuery.isPending ? <LoadingState /> : null}
                   {names.length === 0 && !itemsQuery.isPending ? (
                     <p className="text-sm text-muted-foreground">
-                      Блюдо на цей день ще не складено.
+                      {special
+                        ? 'Спеціальне меню класу на цей день ще не складено.'
+                        : 'Блюдо на цей день ще не складено.'}
                     </p>
                   ) : (
                     <>
-                      <p className="text-sm font-medium">Блюдо дня</p>
+                      <p className="text-sm font-medium">
+                        {special ? `${specialMenuLabel(special.name)} класу` : 'Блюдо дня'}
+                      </p>
                       <ul className="space-y-0.5 text-sm">
                         {names.map((name) => (
                           <li key={name}>{name}</li>
@@ -194,7 +197,7 @@ export function StudentOrdersTab({ student }: { student: Student }) {
                 </div>
 
                 <Button
-                  disabled={submit.isPending || (itemsQuery.data ?? []).length === 0}
+                  disabled={submit.isPending || menuItems.length === 0}
                   onClick={() => submit.mutate()}
                 >
                   {submit.isPending ? 'Замовляємо…' : 'Замовити блюдо'}

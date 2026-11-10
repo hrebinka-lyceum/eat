@@ -24,17 +24,17 @@ const student = {
   enrolled_from: '2026-09-01', left_at: null, created_at: '2026-09-01T00:00:00Z',
 }
 
-const { getStudentByProfile, getNextPublishedDay, listMenuItemsPlain, areOrdersOpen, getOrderPlain } =
+const { getStudentByProfile, getNextPublishedDay, getClassMenu, areOrdersOpen, getOrderPlain } =
   vi.hoisted(() => ({
     getStudentByProfile: vi.fn(),
     getNextPublishedDay: vi.fn(),
-    listMenuItemsPlain: vi.fn(),
+    getClassMenu: vi.fn(),
     areOrdersOpen: vi.fn(),
     getOrderPlain: vi.fn(),
   }))
 
 vi.mock('@/api/students', () => ({ getStudentByProfile }))
-vi.mock('@/api/menu', () => ({ getNextPublishedDay, listMenuItemsPlain, areOrdersOpen }))
+vi.mock('@/api/menu', () => ({ getNextPublishedDay, getClassMenu, areOrdersOpen }))
 vi.mock('@/api/orders', () => ({ getOrderPlain }))
 
 const { default: StudentMenuPage } = await import('@/pages/student/StudentMenuPage')
@@ -58,7 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   getStudentByProfile.mockResolvedValue(student)
   getNextPublishedDay.mockResolvedValue(day)
-  listMenuItemsPlain.mockResolvedValue(items)
+  getClassMenu.mockResolvedValue({ special: null, items })
   areOrdersOpen.mockResolvedValue(true)
   getOrderPlain.mockResolvedValue(null)
 })
@@ -117,10 +117,24 @@ describe('екран учня', () => {
   })
 
   it('порожній день не пропонує замовляти порожнечу', async () => {
-    listMenuItemsPlain.mockResolvedValue([])
+    getClassMenu.mockResolvedValue({ special: null, items: [] })
     renderPage()
 
     expect(await screen.findByText(/ще не складено/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Замовити' })).not.toBeInTheDocument()
+  })
+
+  // Клас учня в спеціальному меню — учень бачить саме його і що воно для його класу.
+  it('учень класу зі спецменю бачить його, а не основне', async () => {
+    getClassMenu.mockResolvedValue({
+      special: { id: 'sm1', name: 'Дієтичне' },
+      items: [{ id: 's1', menu_date: '2026-09-01', dish_id: 'd9', special_menu_id: 'sm1', dishes: { id: 'd9', name: 'Рисова каша на воді', category: 'second' } }],
+    })
+    renderPage()
+
+    expect(await screen.findByText('Дієтичне для твого класу')).toBeInTheDocument()
+    expect(screen.getByText('Рисова каша на воді')).toBeInTheDocument()
+    expect(screen.queryByText('Каша вівсяна')).not.toBeInTheDocument()
+    expect(getClassMenu).toHaveBeenCalledWith('2026-09-01', 'c1')
   })
 })

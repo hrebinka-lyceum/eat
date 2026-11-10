@@ -3,15 +3,23 @@ import { screen, within } from '@testing-library/react'
 import { renderWithProviders } from '../helpers'
 import { toIsoDate } from '@/lib/format'
 
-const { ordersByDish, dailyTotals, classCoverage, costRows, orderGenders } = vi.hoisted(() => ({
+const {
+  ordersByDish, dailyTotals, classCoverage, costRows, orderGenders, ordersByMenu,
+  listSpecialMenus, listMenuItems,
+} = vi.hoisted(() => ({
   ordersByDish: vi.fn(),
   dailyTotals: vi.fn(),
   classCoverage: vi.fn(),
   costRows: vi.fn(),
   orderGenders: vi.fn(),
+  ordersByMenu: vi.fn(),
+  listSpecialMenus: vi.fn(),
+  listMenuItems: vi.fn(),
 }))
 
-vi.mock('@/api/stats', () => ({ ordersByDish, dailyTotals, classCoverage, costRows, orderGenders }))
+vi.mock('@/api/stats', () => ({ ordersByDish, dailyTotals, classCoverage, costRows, orderGenders, ordersByMenu }))
+vi.mock('@/api/specialMenus', () => ({ listSpecialMenus }))
+vi.mock('@/api/menu', () => ({ listMenuItems }))
 
 const { default: PortionsPage } = await import('@/pages/cafeteria/PortionsPage')
 
@@ -36,6 +44,9 @@ beforeEach(() => {
   classCoverage.mockResolvedValue([])
   costRows.mockResolvedValue([])
   orderGenders.mockResolvedValue([])
+  listSpecialMenus.mockResolvedValue([])
+  listMenuItems.mockResolvedValue([])
+  ordersByMenu.mockResolvedValue({ main: 84, special: {} })
 })
 
 const coverage = (class_id: string, class_name: string, ordered: number) => ({
@@ -115,5 +126,40 @@ describe('аркуш порцій', () => {
     const row = screen.getByText('Котлета').closest('tr') as HTMLElement
     expect(within(row).queryByText(/грн|₴/)).not.toBeInTheDocument()
     expect(screen.getByText('Вартість за день')).toBeInTheDocument()
+  })
+})
+
+describe('аркуш порцій: спеціальні меню', () => {
+  const mi = (id: string, name: string, special: string | null) => ({
+    id, menu_date: today, dish_id: `d-${id}`, price: null, special_menu_id: special,
+    dishes: { id: `d-${id}`, name, category: 'second', is_active: true },
+  })
+
+  // Основне блюдо й спецменю готуються окремо — кухарю потрібне число по меню.
+  it('у день зі спецменю показує порції кожного меню окремо', async () => {
+    listSpecialMenus.mockResolvedValue([
+      { id: 'sm1', menu_date: today, name: 'Дієтичне', created_at: '', classes: [{ id: 'c1', name: '1-А' }, { id: 'c2', name: '1-Б' }] },
+    ])
+    listMenuItems.mockResolvedValue([
+      mi('m1', 'Гречана каша', null), mi('m2', 'Котлета', null),
+      mi('s1', 'Рисова каша на воді', 'sm1'), mi('s2', 'Компот', 'sm1'),
+    ])
+    ordersByMenu.mockResolvedValue({ main: 70, special: { sm1: 14 } })
+    renderWithProviders(<PortionsPage />, { role: 'cafeteria' })
+
+    const special = (await screen.findByText('Дієтичне')).closest('tr') as HTMLElement
+    expect(within(special).getByText('1-А, 1-Б')).toBeInTheDocument()
+    expect(within(special).getByText('Компот · Рисова каша на воді')).toBeInTheDocument()
+    expect(within(special).getByText('14')).toBeInTheDocument()
+    const main = screen.getByText('Основне меню').closest('tr') as HTMLElement
+    expect(within(main).getByText('70')).toBeInTheDocument()
+    expect(within(main).getByText('Гречана каша · Котлета')).toBeInTheDocument()
+  })
+
+  it('у звичайний день розбивки за меню немає', async () => {
+    renderWithProviders(<PortionsPage />, { role: 'cafeteria' })
+    await screen.findByText('Порцій блюда')
+    expect(screen.queryByText('Меню дня')).not.toBeInTheDocument()
+    expect(ordersByMenu).not.toHaveBeenCalled()
   })
 })

@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { areOrdersOpen, getNextPublishedDay, listMenuItemsPlain } from '@/api/menu'
+import { areOrdersOpen, getClassMenu, getNextPublishedDay } from '@/api/menu'
 import { getOrderPlain } from '@/api/orders'
 import { qk } from '@/lib/queryKeys'
 import { useMyStudent } from './useMyStudent'
 
 /**
  * Усе, що потрібно екрану учня: його картка, найближчий опублікований день,
- * склад меню без цін, власне замовлення на цей день і відповідь сервера про
- * те, чи ще приймаються замовлення.
+ * склад меню його класу без цін (спеціального, якщо клас у ньому), власне
+ * замовлення на цей день і відповідь сервера про те, чи ще приймаються замовлення.
  */
 export function useStudentDay() {
   const { student, isPending: studentPending, error: studentError } = useMyStudent()
@@ -19,10 +19,12 @@ export function useStudentDay() {
 
   const menuDate = dayQuery.data?.menu_date ?? null
 
-  const itemsQuery = useQuery({
-    queryKey: qk.menuItemsPlain(menuDate ?? ''),
-    queryFn: () => listMenuItemsPlain(menuDate!),
-    enabled: Boolean(menuDate),
+  const classId = student?.class_id ?? null
+
+  const menuQuery = useQuery({
+    queryKey: qk.classMenu(menuDate ?? '', classId ?? ''),
+    queryFn: () => getClassMenu(menuDate!, classId!),
+    enabled: Boolean(menuDate) && Boolean(classId),
   })
 
   const orderQuery = useQuery({
@@ -43,7 +45,9 @@ export function useStudentDay() {
   return {
     student,
     day: dayQuery.data ?? null,
-    items: itemsQuery.data ?? [],
+    items: menuQuery.data?.items ?? [],
+    /** спеціальне меню класу на цей день; null — основне */
+    special: menuQuery.data?.special ?? null,
     order: orderQuery.data ?? null,
     /** true — відкрито, false — час минув, null — сервер не відповів */
     ordersOpen: openQuery.data ?? null,
@@ -51,7 +55,7 @@ export function useStudentDay() {
     // немає опублікованого дня) назавжди лишається pending, і екран завис би
     // на «Завантаження…» замість пояснення, що відбувається.
     isPending:
-      studentPending || dayQuery.isLoading || itemsQuery.isLoading || orderQuery.isLoading,
-    error: studentError ?? dayQuery.error ?? itemsQuery.error ?? orderQuery.error,
+      studentPending || dayQuery.isLoading || menuQuery.isLoading || orderQuery.isLoading,
+    error: studentError ?? dayQuery.error ?? menuQuery.error ?? orderQuery.error,
   }
 }

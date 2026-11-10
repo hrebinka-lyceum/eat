@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CircleCheck, Star, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
-import { areOrdersOpen, listMenuItemsPlain } from '@/api/menu'
+import { areOrdersOpen, getClassMenu } from '@/api/menu'
 import { listOrdersPlainOfClass, placeOrder } from '@/api/orders'
 import { listStudentsOfClass } from '@/api/students'
 import { useMyClass } from '@/hooks/useMyClass'
@@ -14,8 +14,7 @@ import {
   formatCutoff,
   formatDateWithWeekday,
   fullName,
-  plural,
-} from '@/lib/format'
+  plural, specialMenuLabel } from '@/lib/format'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ExportButton } from '@/components/common/ExportButton'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
@@ -58,10 +57,11 @@ export default function ClassOrdersPage() {
     enabled: Boolean(myClass),
   })
 
+  // Меню саме цього класу: спеціальне, якщо клас у ньому, інакше основне.
   const itemsQuery = useQuery({
-    queryKey: qk.menuItemsPlain(activeDay ?? ''),
-    queryFn: () => listMenuItemsPlain(activeDay!),
-    enabled: Boolean(activeDay),
+    queryKey: qk.classMenu(activeDay ?? '', myClass?.id ?? ''),
+    queryFn: () => getClassMenu(activeDay!, myClass!.id),
+    enabled: Boolean(activeDay) && Boolean(myClass),
   })
 
   const ordersQuery = useQuery({
@@ -79,9 +79,10 @@ export default function ClassOrdersPage() {
   })
 
   const students = studentsQuery.data ?? []
+  const special = itemsQuery.data?.special ?? null
   const items = useMemo(
     () =>
-      [...(itemsQuery.data ?? [])].sort((a, b) =>
+      [...(itemsQuery.data?.items ?? [])].sort((a, b) =>
         a.dishes.name.localeCompare(b.dishes.name, 'uk'),
       ),
     [itemsQuery.data],
@@ -258,9 +259,13 @@ export default function ClassOrdersPage() {
 
       {activeDay && students.length > 0 && items.length > 0 ? (
         <>
-          {/* Керівник має бачити, що саме він замовляє, — склад дня один на всіх. */}
+          {/* Керівник має бачити, що саме він замовляє, — склад меню класу. */}
           <div className="rounded-lg border p-3">
-            <p className="text-sm font-medium">Блюдо на цей день</p>
+            <p className="text-sm font-medium">
+              {special
+                ? `${specialMenuLabel(special.name)} для вашого класу на цей день`
+                : 'Блюдо на цей день'}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {items.map((item) => item.dishes.name).join(' · ')}
             </p>
@@ -326,9 +331,13 @@ export default function ClassOrdersPage() {
         </>
       ) : null}
 
-      {activeDay && items.length === 0 && !itemsQuery.isPending ? (
+      {activeDay && myClass && items.length === 0 && !itemsQuery.isPending ? (
         <EmptyState
-          title="Блюдо на цей день ще не складено"
+          title={
+            special
+              ? 'Спеціальне меню для вашого класу на цей день ще не складено'
+              : 'Блюдо на цей день ще не складено'
+          }
           hint="Зверніться до працівника їдальні."
         />
       ) : null}

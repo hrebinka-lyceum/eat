@@ -163,3 +163,33 @@ export async function orderGenders(from: string, to: string): Promise<OrderGende
     gender: row.students?.gender ?? null,
   }))
 }
+
+/**
+ * Скільки замовлень за яким меню на день — для кухні: основне блюдо й кожне
+ * спеціальне готуються окремо. Береться зі зліпка orders.special_menu_id.
+ */
+export interface OrdersByMenu {
+  main: number
+  /** id спеціального меню → кількість замовлень */
+  special: Record<string, number>
+}
+
+export async function ordersByMenu(menuDate: string): Promise<OrdersByMenu> {
+  const rows = (await fetchAllPages(
+    (start, end) =>
+      supabase
+        .from('orders')
+        .select('id, special_menu_id')
+        .eq('menu_date', menuDate)
+        .order('id')
+        .range(start, end),
+    'Не вдалося порахувати замовлення за меню.',
+  )) as unknown as Array<{ id: string; special_menu_id: string | null }>
+
+  const result: OrdersByMenu = { main: 0, special: {} }
+  for (const row of rows) {
+    if (row.special_menu_id === null) result.main += 1
+    else result.special[row.special_menu_id] = (result.special[row.special_menu_id] ?? 0) + 1
+  }
+  return result
+}

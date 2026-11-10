@@ -23,6 +23,11 @@ export const GENDER_SHORT: Record<Gender, string> = {
   female: 'ж',
 }
 
+/** Назва спеціального меню для людей: без назви — просто «Спеціальне меню». */
+export function specialMenuLabel(name: string | null | undefined): string {
+  return name?.trim() || 'Спеціальне меню'
+}
+
 export const MENU_STATUS_LABELS: Record<MenuStatus, string> = {
   draft: 'Чернетка',
   published: 'Опубліковано',

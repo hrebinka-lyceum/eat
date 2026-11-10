@@ -21,6 +21,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { DayPicker } from './components/DayPicker'
+import { MenuBreakdown } from './components/MenuBreakdown'
 
 /**
  * Головний екран їдальні: скільки чого готувати цього дня.
@@ -175,6 +176,8 @@ export default function PortionsPage() {
               />
             ) : null}
           </div>
+
+          <MenuBreakdown date={date} />
 
           {dishes.length === 0 ? (
             <EmptyState

@@ -13,15 +13,18 @@ interface Update {
 
 const updates: Update[] = []
 let rows: Array<{ id: string }> = []
+/** фільтри меню в запиті на читання складу: ['eq', 'special_menu_id', 'sm1'] чи ['is', …, null] */
+const menuFilters: unknown[][] = []
 
 function chain() {
   const builder: Record<string, unknown> = {}
   let pending: { price: number | null } | null = null
   const ids: string[] = []
 
-  for (const name of ['select', 'eq', 'in', 'order', 'update']) {
+  for (const name of ['select', 'eq', 'in', 'is', 'order', 'update']) {
     builder[name] = vi.fn((...args: unknown[]) => {
       if (name === 'update') pending = args[0] as { price: number | null }
+      if (args[0] === 'special_menu_id') menuFilters.push([name, ...args])
       if (name === 'eq' && args[0] === 'id') ids.push(String(args[1]))
       if (name === 'in' && args[0] === 'id') ids.push(...(args[1] as string[]))
       return builder
@@ -46,6 +49,7 @@ const { setDayPrice } = await import('@/api/menu')
 
 beforeEach(() => {
   updates.length = 0
+  menuFilters.length = 0
 })
 
 describe('вартість блюда', () => {
@@ -82,5 +86,20 @@ describe('вартість блюда', () => {
 
     expect(updates[0]).toEqual({ price: null, ids: ['a'] })
     expect(updates[1]).toEqual({ price: null, ids: ['b'] })
+  })
+
+  // Кожне меню дня має власну вартість: сума основного не може лягти на
+  // компонент спеціального меню, і навпаки.
+  it('основне меню — лише компоненти без спецменю', async () => {
+    rows = [{ id: 'a' }]
+    await setDayPrice('2026-09-01', 40)
+    expect(menuFilters).toEqual([['is', 'special_menu_id', null]])
+  })
+
+  it('спеціальне меню — лише його компоненти', async () => {
+    rows = [{ id: 's1' }, { id: 's2' }]
+    await setDayPrice('2026-09-01', 65, 'sm1')
+    expect(menuFilters).toEqual([['eq', 'special_menu_id', 'sm1']])
+    expect(updates[0]).toEqual({ price: 65, ids: ['s1'] })
   })
 })

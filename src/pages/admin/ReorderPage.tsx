@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { getSettings } from '@/api/settings'
 import { listClasses } from '@/api/classes'
 import { listStudentsOfClass } from '@/api/students'
-import { areOrdersOpen, listMenuDays, listMenuItemsPlain } from '@/api/menu'
+import { areOrdersOpen, getClassMenu, listMenuDays } from '@/api/menu'
 import { listOrdersPlainOfClass, placeOrder } from '@/api/orders'
 import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
@@ -15,8 +15,7 @@ import {
   formatCutoff,
   formatDateWithWeekday,
   fullName,
-  toIsoDate,
-} from '@/lib/format'
+  toIsoDate, specialMenuLabel } from '@/lib/format'
 import { PageHeader } from '@/components/common/PageHeader'
 import { ConfirmDialog } from '@/components/common/ConfirmDialog'
 import { EmptyState, ErrorState, LoadingState } from '@/components/common/states'
@@ -77,10 +76,11 @@ export default function ReorderPage() {
   const activeDate = date ?? days.find((day) => day.menu_date === today)?.menu_date ?? days[0]?.menu_date ?? null
   const activeDay = days.find((day) => day.menu_date === activeDate) ?? null
 
+  // Склад залежить від класу: у класу може бути спеціальне меню на цей день.
   const itemsQuery = useQuery({
-    queryKey: qk.menuItemsPlain(activeDate ?? ''),
-    queryFn: () => listMenuItemsPlain(activeDate!),
-    enabled: Boolean(activeDate),
+    queryKey: qk.classMenu(activeDate ?? '', classId ?? ''),
+    queryFn: () => getClassMenu(activeDate!, classId!),
+    enabled: Boolean(activeDate && classId),
   })
   const openQuery = useQuery({
     queryKey: qk.ordersOpen(activeDate ?? ''),
@@ -103,11 +103,13 @@ export default function ReorderPage() {
     () => new Map((ordersQuery.data ?? []).map((order) => [order.student_id, order])),
     [ordersQuery.data],
   )
+  const menuItems = useMemo(() => itemsQuery.data?.items ?? [], [itemsQuery.data])
+  const special = itemsQuery.data?.special ?? null
   const dishNames = useMemo(
-    () => (itemsQuery.data ?? []).map((item) => item.dishes.name).sort((a, b) => a.localeCompare(b, 'uk')),
-    [itemsQuery.data],
+    () => menuItems.map((item) => item.dishes.name).sort((a, b) => a.localeCompare(b, 'uk')),
+    [menuItems],
   )
-  const hasMenu = (itemsQuery.data ?? []).length > 0
+  const hasMenu = menuItems.length > 0
   const willBeLate = openQuery.data === false
 
   const term = search.trim().toLocaleLowerCase('uk')
@@ -121,7 +123,7 @@ export default function ReorderPage() {
   const order = useMutation({
     // Блюдо неподільне: замовляється весь склад дня.
     mutationFn: (student: Student) =>
-      placeOrder(student.id, activeDate!, (itemsQuery.data ?? []).map((item) => item.id)),
+      placeOrder(student.id, activeDate!, menuItems.map((item) => item.id)),
     onSuccess: async (_id, student) => {
       setTarget(null)
       toast.success(`Замовлено для ${fullName(student.last_name, student.first_name)}`)
@@ -137,6 +139,7 @@ export default function ReorderPage() {
 
   const error = settingsQuery.error ?? classesQuery.error ?? daysQuery.error ?? itemsQuery.error
   const classes = classesQuery.data ?? []
+  const chosenClassName = classes.find((klass) => klass.id === classId)?.name ?? ''
 
   return (
     <div className="space-y-6">
@@ -196,15 +199,21 @@ export default function ReorderPage() {
             ) : null}
           </div>
 
-          <div className="space-y-1 rounded-lg border p-3">
-            <p className="text-sm font-medium">Блюдо на цей день</p>
-            {itemsQuery.isLoading ? <LoadingState /> : null}
-            {!itemsQuery.isLoading ? (
-              <p className="text-sm text-muted-foreground">
-                {hasMenu ? dishNames.join(' · ') : 'Ще не складено — замовити не можна.'}
+          {classId ? (
+            <div className="space-y-1 rounded-lg border p-3">
+              <p className="text-sm font-medium">
+                {special
+                  ? `${specialMenuLabel(special.name)} для ${chosenClassName} на цей день`
+                  : 'Блюдо на цей день'}
               </p>
-            ) : null}
-          </div>
+              {itemsQuery.isLoading ? <LoadingState /> : null}
+              {!itemsQuery.isLoading ? (
+                <p className="text-sm text-muted-foreground">
+                  {hasMenu ? dishNames.join(' · ') : 'Ще не складено — замовити не можна.'}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           {willBeLate ? (
             <Alert>

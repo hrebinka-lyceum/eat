@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { placeOrder } from '@/api/orders'
 import { useStudentDay } from '@/hooks/useStudentDay'
 import { humanError } from '@/lib/errors'
-import { formatCutoffTime, formatDateWithWeekday } from '@/lib/format'
+import { formatCutoffTime, formatDateWithWeekday, specialMenuLabel } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { ErrorState, LoadingState } from '@/components/common/states'
 
@@ -24,7 +24,7 @@ export default function StudentConfirmPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const { student, day, items, isPending, error } = useStudentDay()
+  const { student, day, items, special, isPending, error } = useStudentDay()
   const [failure, setFailure] = useState<string | null>(null)
 
   const state = location.state as ConfirmState | null
@@ -65,7 +65,9 @@ export default function StudentConfirmPage() {
       </div>
 
       <div className="space-y-3 rounded-xl border p-4">
-        <p className="font-medium">Блюдо дня</p>
+        <p className="font-medium">
+          {special ? `${specialMenuLabel(special.name)} для твого класу` : 'Блюдо дня'}
+        </p>
         <ul className="space-y-1">
           {names.map((name) => (
             <li key={name} className="text-base">

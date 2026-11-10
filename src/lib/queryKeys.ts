@@ -5,8 +5,11 @@ export const qk = {
   menuDays: (from: string, to: string, status?: string) =>
     ['menu-days', from, to, status ?? 'all'] as const,
   menuItems: (date: string) => ['menu-items', date] as const,
-  menuItemsPlain: (date: string) => ['menu-items-plain', date] as const,
-  menuItemsPlainForDates: (dates: string[]) => ['menu-items-plain', dates.join(',')] as const,
+  // Меню класу (основне чи спеціальне) без цін — спільний префікс 'menu-items-plain'.
+  classMenu: (date: string, classId: string) => ['menu-items-plain', date, classId] as const,
+  classMenus: (dates: string[], classId: string) =>
+    ['menu-items-plain', dates.join(','), classId] as const,
+  specialMenus: (date: string) => ['special-menus', date] as const,
   nextEmptyDay: () => ['menu-next-empty'] as const,
   nextPublishedDay: () => ['menu-next-published'] as const,
   settings: () => ['settings'] as const,
@@ -29,4 +32,5 @@ export const qk = {
   reportSettings: () => ['report-settings'] as const,
   mealOrders: (from: string, to: string) => ['stats', 'meal-orders', from, to] as const,
   orderGenders: (from: string, to: string) => ['stats', 'order-genders', from, to] as const,
+  ordersByMenu: (date: string) => ['stats', 'orders-by-menu', date] as const,
 }

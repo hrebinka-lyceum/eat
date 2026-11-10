@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { copyMenu, listMenuItems, setDayPrice } from '@/api/menu'
+import { copyMenu } from '@/api/menu'
 import { humanError } from '@/lib/errors'
 import { prevWorkday } from '@/lib/dates'
 import { formatDateWithWeekday } from '@/lib/format'
@@ -19,7 +19,12 @@ import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ErrorState } from '@/components/common/states'
 
-/** Копіювання складу меню з іншого дня. Ціни беруться поточні з довідника. */
+/**
+ * Копіювання меню з іншого дня: основне й усі спеціальні (з класами), кожне —
+ * з вартістю дня-джерела. Усе робить copy_menu на сервері: вартість на
+ * клієнті більше не переноситься (сума всіх компонентів дня тепер склала б
+ * основне й спеціальні меню докупи).
+ */
 export function CopyMenuDialog({
   open,
   onOpenChange,
@@ -42,23 +47,13 @@ export function CopyMenuDialog({
   }, [open, targetDate])
 
   const mutation = useMutation({
-    mutationFn: async () => {
-      // copy_menu бере ціни з довідника, а в компонентів їх немає: вартість
-      // належить блюду, а не складовій. Тому переносимо суму дня-джерела
-      // самі — інакше скопійований день лишався б без ціни.
-      const sourceItems = await listMenuItems(source)
-      const sourceTotal = sourceItems.some((item) => item.price !== null)
-        ? sourceItems.reduce((sum, item) => sum + (item.price ?? 0), 0)
-        : null
-
-      const count = await copyMenu(source, targetDate)
-      await setDayPrice(targetDate, sourceTotal)
-      return count
-    },
+    mutationFn: () => copyMenu(source, targetDate),
     onSuccess: async (count) => {
       await queryClient.invalidateQueries({ queryKey: ['menu-items'] })
       await queryClient.invalidateQueries({ queryKey: ['menu-day'] })
       await queryClient.invalidateQueries({ queryKey: ['menu-next-empty'] })
+      await queryClient.invalidateQueries({ queryKey: ['special-menus'] })
+      await queryClient.invalidateQueries({ queryKey: ['menu-items-plain'] })
       toast.success(
         count === 0
           ? 'У дні-джерелі немає активних компонентів'
@@ -75,8 +70,8 @@ export function CopyMenuDialog({
         <DialogHeader>
           <DialogTitle>Скопіювати блюдо</DialogTitle>
           <DialogDescription>
-            Склад блюда перенесеться на {formatDateWithWeekday(targetDate)} разом
-            із вартістю дня-джерела.
+            Основне меню й спеціальні (разом із класами) перенесуться на{' '}
+            {formatDateWithWeekday(targetDate)} з вартістю дня-джерела.
           </DialogDescription>
         </DialogHeader>
 
@@ -94,7 +89,8 @@ export function CopyMenuDialog({
           {targetHasItems ? (
             <Alert>
               <AlertDescription>
-                У цьому дні вже є компоненти — вони будуть замінені складом дня-джерела.
+                У цьому дні вже є меню — його буде замінено меню дня-джерела, разом зі
+                спеціальними.
               </AlertDescription>
             </Alert>
           ) : null}

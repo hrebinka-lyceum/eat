@@ -37,7 +37,7 @@ vi.mock('@/lib/supabase', () => ({
   },
 }))
 
-const { listMenuItemsPlain, listMenuItemsPlainForDates, listMenuItems } = await import('@/api/menu')
+const { getClassMenu, getClassMenus, listMenuItems } = await import('@/api/menu')
 const { getOrderPlain, listOrdersPlainOfStudent, listOrdersPlainOfClass, getOrderOfStudent } =
   await import('@/api/orders')
 const { timesheetOrders } = await import('@/api/reports')
@@ -49,15 +49,18 @@ beforeEach(() => {
 const lastSelect = () => selects[selects.length - 1]
 
 describe('запити без цін (учень і класний керівник)', () => {
-  it('меню дня', async () => {
-    await listMenuItemsPlain('2026-09-01')
-    expect(lastSelect()).not.toMatch(/price/)
+  // Меню класу — два запити: чи клас у спеціальному меню, і склад. Обидва без цін.
+  it('меню класу на день (основне чи спеціальне)', async () => {
+    await getClassMenu('2026-09-01', 'c1')
+    expect(selects.length).toBeGreaterThanOrEqual(2)
+    for (const select of selects) expect(select).not.toMatch(/price/)
     expect(lastSelect()).toContain('dishes(id, name, category)')
   })
 
-  it('меню за набір днів', async () => {
-    await listMenuItemsPlainForDates(['2026-09-01'])
-    expect(lastSelect()).not.toMatch(/price/)
+  it('меню класу за набір днів', async () => {
+    await getClassMenus(['2026-09-01'], 'c1')
+    expect(selects.length).toBeGreaterThanOrEqual(2)
+    for (const select of selects) expect(select).not.toMatch(/price/)
   })
 
   it('своє замовлення', async () => {

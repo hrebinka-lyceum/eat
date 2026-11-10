@@ -19,7 +19,20 @@ export interface MenuItemPlain {
   id: string
   menu_date: string
   dish_id: string
+  special_menu_id: string | null
   dishes: Pick<Dish, 'id' | 'name' | 'category'>
+}
+
+const PLAIN_ITEM = 'id, menu_date, dish_id, special_menu_id, dishes(id, name, category)'
+
+/**
+ * Меню, що діє для класу в цей день: спеціальне, якщо клас у ньому, інакше
+ * основне. Саме його place_order покладе в замовлення.
+ */
+export interface ClassMenu {
+  /** null — основне меню */
+  special: { id: string; name: string } | null
+  items: MenuItemPlain[]
 }
 
 export async function listMenuDays(
@@ -57,12 +70,13 @@ export async function getNextPublishedDay(from: string = toIsoDate()): Promise<M
   )
 }
 
-/** Найближчий день без жодної страви — робочий режим редактора меню. */
+/** Найближчий день з порожнім основним меню — робочий режим редактора меню. */
 export async function getNextEmptyDay(from: string = toIsoDate()): Promise<MenuDay | null> {
   const days = unwrap(
     await supabase
       .from('menu_days')
       .select('*, menu_items(id)')
+      .is('menu_items.special_menu_id', null)
       .gte('menu_date', from)
       .order('menu_date')
       .limit(30),
@@ -75,6 +89,7 @@ export async function getNextEmptyDay(from: string = toIsoDate()): Promise<MenuD
   return day
 }
 
+/** Усі компоненти дня — основного меню й спеціальних (див. special_menu_id). */
 export async function listMenuItems(menuDate: string): Promise<MenuItemWithDish[]> {
   return unwrap(
     await supabase
@@ -85,15 +100,18 @@ export async function listMenuItems(menuDate: string): Promise<MenuItemWithDish[
   ) as unknown as MenuItemWithDish[]
 }
 
-/** Ціну підставить тригер із довідника, якщо не вказати явно. */
+/**
+ * Компонент до основного меню (specialMenuId = null) чи до спеціального.
+ * Ціну підставить тригер із довідника — тому після додавання викликають setDayPrice.
+ */
 export async function addMenuItem(
   menuDate: string,
   dishId: string,
-  price?: number | null,
+  specialMenuId: string | null = null,
 ): Promise<MenuItem> {
   const { data, error } = await supabase
     .from('menu_items')
-    .insert({ menu_date: menuDate, dish_id: dishId, ...(price != null ? { price } : {}) })
+    .insert({ menu_date: menuDate, dish_id: dishId, special_menu_id: specialMenuId })
     .select('*')
     .single()
 
@@ -102,7 +120,7 @@ export async function addMenuItem(
       humanErrorWith(
         error,
         {
-          '23505': 'Цей компонент уже є в блюді на цей день.',
+          '23505': 'Цей компонент уже є в цьому меню.',
           '23503': 'Дня меню ще не існує — спершу створіть його.',
         },
         'Не вдалося додати страву до меню.',
@@ -158,22 +176,37 @@ export async function generateMenuDays(from: string, to: string): Promise<number
   return data ?? 0
 }
 
-/** Копіює склад меню; ціни беруться поточні з довідника. */
+/** Копіює основне меню й спеціальні (з класами й вартістю дня-джерела). */
 export async function copyMenu(source: string, target: string): Promise<number> {
   const { data, error } = await supabase.rpc('copy_menu', { p_source: source, p_target: target })
   if (error) throw new Error(humanError(error, 'Не вдалося скопіювати меню.'))
   return data ?? 0
 }
 
-/** Склад меню без цін — для керівника та учня. */
-export async function listMenuItemsPlain(menuDate: string): Promise<MenuItemPlain[]> {
+interface Assignment {
+  menu_date: string
+  special_menus: { id: string; name: string } | null
+}
+
+async function assignmentsOf(classId: string, dates: string[]): Promise<Assignment[]> {
   return unwrap(
     await supabase
-      .from('menu_items')
-      .select('id, menu_date, dish_id, dishes(id, name, category)')
-      .eq('menu_date', menuDate),
-    'Не вдалося отримати меню на день.',
-  ) as unknown as MenuItemPlain[]
+      .from('special_menu_classes')
+      .select('menu_date, special_menus(id, name)')
+      .eq('class_id', classId)
+      .in('menu_date', dates),
+    'Не вдалося дізнатися, яке меню в класу.',
+  ) as unknown as Assignment[]
+}
+
+/** Склад меню класу на день, без цін — для керівника, учня й «Дозамовити». */
+export async function getClassMenu(menuDate: string, classId: string): Promise<ClassMenu> {
+  const [assignment] = await assignmentsOf(classId, [menuDate])
+  const special = assignment?.special_menus ?? null
+  let query = supabase.from('menu_items').select(PLAIN_ITEM).eq('menu_date', menuDate)
+  query = special ? query.eq('special_menu_id', special.id) : query.is('special_menu_id', null)
+  const items = unwrap(await query, 'Не вдалося отримати меню на день.') as unknown as MenuItemPlain[]
+  return { special, items }
 }
 
 /**
@@ -181,19 +214,31 @@ export async function listMenuItemsPlain(menuDate: string): Promise<MenuItemPlai
  * лише опубліковані дні, тож і склад читаємо тільки для них — чернетка
  * не має доходити до клієнта навіть у мережевій відповіді.
  */
-export async function listMenuItemsPlainForDates(dates: string[]): Promise<MenuItemPlain[]> {
-  if (dates.length === 0) return []
-  return unwrap(
-    await supabase
-      .from('menu_items')
-      .select('id, menu_date, dish_id, dishes(id, name, category)')
-      .in('menu_date', dates)
-      .order('menu_date'),
-    'Не вдалося отримати меню.',
-  ) as unknown as MenuItemPlain[]
+export async function getClassMenus(
+  dates: string[],
+  classId: string,
+): Promise<Record<string, ClassMenu>> {
+  if (dates.length === 0) return {}
+  const [assignments, itemsResult] = await Promise.all([
+    assignmentsOf(classId, dates),
+    supabase.from('menu_items').select(PLAIN_ITEM).in('menu_date', dates).order('menu_date'),
+  ])
+  const items = unwrap(itemsResult, 'Не вдалося отримати меню.') as unknown as MenuItemPlain[]
+  const specialOf = new Map(assignments.map((a) => [a.menu_date, a.special_menus]))
+  const result: Record<string, ClassMenu> = {}
+  for (const date of dates) {
+    const special = specialOf.get(date) ?? null
+    result[date] = {
+      special,
+      items: items.filter(
+        (item) => item.menu_date === date && item.special_menu_id === (special?.id ?? null),
+      ),
+    }
+  }
+  return result
 }
 
-/** Дні періоду разом з кількістю страв — для перемикача дати в редакторі. */
+/** Дні періоду разом з кількістю компонентів основного меню — для перемикача дати. */
 export async function listMenuDaysWithCounts(
   from: string,
   to: string,
@@ -202,6 +247,7 @@ export async function listMenuDaysWithCounts(
     await supabase
       .from('menu_days')
       .select('*, menu_items(id)')
+      .is('menu_items.special_menu_id', null)
       .gte('menu_date', from)
       .lte('menu_date', to)
       .order('menu_date'),
@@ -228,7 +274,7 @@ export async function areOrdersOpen(menuDate: string): Promise<boolean | null> {
 }
 
 /**
- * Вартість блюда на день.
+ * Вартість блюда меню: основного (specialMenuId = null) чи спеціального.
  *
  * Кухар указує одну суму за все блюдо, а схема зберігає ціну на кожній позиції
  * меню. Тому суму кладемо на один компонент (перший за ідентифікатором — порядок
@@ -240,11 +286,17 @@ export async function areOrdersOpen(menuDate: string): Promise<boolean | null> {
  * кожної зміни складу: тригер stamp_menu_item підставляє ціну з довідника
  * при вставці, а видалення може забрати саме той компонент, що ніс суму.
  */
-export async function setDayPrice(menuDate: string, total: number | null): Promise<void> {
-  const rows = unwrap(
-    await supabase.from('menu_items').select('id').eq('menu_date', menuDate).order('id'),
-    'Не вдалося прочитати склад блюда.',
-  ) as Array<{ id: string }>
+export async function setDayPrice(
+  menuDate: string,
+  total: number | null,
+  specialMenuId: string | null = null,
+): Promise<void> {
+  // Кожне меню має власну вартість: суму кладемо на компонент саме цього меню.
+  let query = supabase.from('menu_items').select('id').eq('menu_date', menuDate)
+  query = specialMenuId ? query.eq('special_menu_id', specialMenuId) : query.is('special_menu_id', null)
+  const rows = unwrap(await query.order('id'), 'Не вдалося прочитати склад блюда.') as Array<{
+    id: string
+  }>
 
   if (rows.length === 0) return
 
