@@ -295,8 +295,10 @@ export default function ClassOrdersPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-56">Учень</TableHead>
-                  <TableHead className="w-56">
+                  {/* Фіксовані ширини — лише від sm: на телефоні (360–390 px) вони
+                      виштовхували хрестик скасування за край таблиці. */}
+                  <TableHead className="sm:min-w-56">Учень</TableHead>
+                  <TableHead className="sm:w-56">
                     <div className="flex items-center gap-3">
                       <span>Буде їсти</span>
                       {!closed && pending.length > 0 ? (
@@ -316,8 +318,8 @@ export default function ClassOrdersPage() {
 
                   return (
                     <TableRow key={student.id} className={ordered ? 'bg-muted/30' : undefined}>
-                      <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
+                      <TableCell className="font-medium whitespace-normal sm:whitespace-nowrap">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                           {fullName(student.last_name, student.first_name)}
                           {student.is_privileged ? (
                             <Badge variant="secondary">

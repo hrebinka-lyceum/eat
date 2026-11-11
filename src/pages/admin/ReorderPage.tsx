@@ -280,7 +280,7 @@ export default function ReorderPage() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Учень</TableHead>
-                        <TableHead className="w-48">На цей день</TableHead>
+                        <TableHead className="sm:w-48">На цей день</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -289,7 +289,8 @@ export default function ReorderPage() {
                         const existing = orderOf.get(student.id)
                         return (
                           <TableRow key={student.id}>
-                            <TableCell className="font-medium">
+                            {/* На телефоні ім'я переноситься — інакше хрестик за краєм таблиці */}
+                            <TableCell className="font-medium whitespace-normal sm:whitespace-nowrap">
                               {name}
                               {student.is_privileged ? (
                                 <Badge variant="secondary" className="ml-2">

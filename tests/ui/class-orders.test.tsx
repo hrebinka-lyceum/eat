@@ -257,6 +257,20 @@ describe('замовлення за клас', () => {
       expect(cancelOrder).not.toHaveBeenCalled()
     })
 
+    // jsdom не рахує розкладку, тож перевіряємо причину: на телефоні (360–390 px)
+    // фіксовані ширини колонок і неперенесені імена виштовхували хрестик за край.
+    it('на телефоні таблиця без фіксованих ширин, а ім’я може перенестися', async () => {
+      listOrdersPlainOfClass.mockResolvedValue([ordered])
+      renderPage()
+
+      await screen.findByRole('button', { name: 'Скасувати замовлення для Сидоренко Тест' })
+      for (const th of screen.getAllByRole('columnheader')) {
+        expect(th.className).not.toMatch(/(^|\s)(min-w|w)-(?!full)/)
+      }
+      const nameCell = screen.getByText('Сидоренко Тест').closest('td') as HTMLElement
+      expect(nameCell.className).toMatch(/(^|\s)whitespace-normal/)
+    })
+
     it('після дедлайну хрестика немає — скасовує лише адміністратор', async () => {
       areOrdersOpen.mockResolvedValue(false)
       listOrdersPlainOfClass.mockResolvedValue([ordered])

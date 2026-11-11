@@ -161,6 +161,20 @@ describe('дозамовлення', () => {
     await vi.waitFor(() => expect(api.cancelOrder).toHaveBeenCalledWith('o1'))
   })
 
+  // jsdom не рахує розкладку, тож перевіряємо причину: на телефоні фіксована
+  // ширина колонки й неперенесені імена виштовхували хрестик за край таблиці.
+  it('на телефоні таблиця без фіксованих ширин, а ім’я може перенестися', async () => {
+    renderWithProviders(<ReorderPage />, { role: 'admin' })
+    await chooseClass('7-А')
+
+    await screen.findByRole('button', { name: 'Скасувати замовлення для Бойко Анна' })
+    for (const th of screen.getAllByRole('columnheader')) {
+      expect(th.className).not.toMatch(/(^|\s)(min-w|w)-(?!full)/)
+    }
+    const nameCell = screen.getByText('Бойко Анна').closest('td') as HTMLElement
+    expect(nameCell.className).toMatch(/(^|\s)whitespace-normal/)
+  })
+
   it('до дедлайну попередження про кухню немає', async () => {
     api.areOrdersOpen.mockResolvedValue(true)
     renderWithProviders(<ReorderPage />, { role: 'admin' })
