@@ -427,6 +427,11 @@ export interface Database {
         Args: { p_student_id: string; p_menu_date: string; p_menu_item_ids?: string[] }
         Returns: string
       }
+      /** Адміністрація — будь-коли; класний керівник — свого класу до дедлайну. */
+      cancel_order: {
+        Args: { p_order_id: string }
+        Returns: undefined
+      }
       transfer_student: {
         Args: { p_student_id: string; p_new_class_id: string; p_from_date?: string }
         Returns: Json

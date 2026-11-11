@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleCheck, Star, TriangleAlert } from 'lucide-react'
+import { CircleCheck, Star, TriangleAlert, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { areOrdersOpen, getClassMenu } from '@/api/menu'
-import { listOrdersPlainOfClass, placeOrder } from '@/api/orders'
+import { cancelOrder, listOrdersPlainOfClass, placeOrder } from '@/api/orders'
 import { listStudentsOfClass } from '@/api/students'
 import { useMyClass } from '@/hooks/useMyClass'
 import { usePublishedDays } from '@/hooks/usePublishedDays'
@@ -47,6 +47,7 @@ export default function ClassOrdersPage() {
   const [selection, setSelection] = useState<Selection>(new Set())
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [failures, setFailures] = useState<Array<{ name: string; reason: string }>>([])
+  const [toCancel, setToCancel] = useState<{ orderId: string; name: string } | null>(null)
 
   const activeDay = day ?? days[0]?.menu_date ?? null
   const dayInfo = days.find((d) => d.menu_date === activeDay) ?? null
@@ -100,6 +101,10 @@ export default function ClassOrdersPage() {
     }
     return map
   }, [ordersQuery.data])
+  const orderIdOf = useMemo(
+    () => new Map((ordersQuery.data ?? []).map((order) => [order.student_id, order.id])),
+    [ordersQuery.data],
+  )
 
   const closed = openQuery.data === false
   const pending = students.filter((student) => !ordersByStudent.has(student.id))
@@ -153,6 +158,21 @@ export default function ClassOrdersPage() {
     onError: (err) => {
       setConfirmOpen(false)
       toast.error(humanError(err))
+    },
+  })
+
+  // Скасувати можна до того самого часу, що й замовити; після — лише адміністрація.
+  // Рішення приймає сервер (cancel_order), хрестик лише ховається, коли час минув.
+  const cancel = useMutation({
+    mutationFn: (target: { orderId: string; name: string }) => cancelOrder(target.orderId),
+    onSuccess: async (_data, target) => {
+      await queryClient.invalidateQueries({ queryKey: ['orders-of-class'] })
+      setToCancel(null)
+      toast.success(`Замовлення для ${target.name} скасовано`)
+    },
+    onError: (err) => {
+      setToCancel(null)
+      toast.error(humanError(err, 'Не вдалося скасувати замовлення.'))
     },
   })
 
@@ -309,10 +329,30 @@ export default function ClassOrdersPage() {
                       </TableCell>
                       <TableCell>
                         {ordered ? (
-                          <span className="inline-flex items-center gap-1.5 text-sm">
-                            <CircleCheck className="size-4 text-primary" aria-hidden />
-                            Замовлено
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="inline-flex items-center gap-1.5 text-sm">
+                              <CircleCheck className="size-4 text-primary" aria-hidden />
+                              Замовлено
+                            </span>
+                            {!closed ? (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                aria-label={`Скасувати замовлення для ${fullName(student.last_name, student.first_name)}`}
+                                title="Скасувати замовлення"
+                                disabled={cancel.isPending}
+                                onClick={() =>
+                                  setToCancel({
+                                    orderId: orderIdOf.get(student.id)!,
+                                    name: fullName(student.last_name, student.first_name),
+                                  })
+                                }
+                              >
+                                <X className="size-4" aria-hidden />
+                              </Button>
+                            ) : null}
+                          </div>
                         ) : (
                           <Checkbox
                             checked={selection.has(student.id)}
@@ -363,13 +403,34 @@ export default function ClassOrdersPage() {
         description={
           <>
             {activeDay ? `На ${formatDateWithWeekday(activeDay)}. ` : ''}
-            Замовлення незмінне: після підтвердження виправити склад не можна —
-            лише адміністратор зможе його скасувати.
+            {dayInfo
+              ? `Скасувати замовлення можна до ${formatCutoff(dayInfo.cutoff_at)} — червоним хрестиком біля учня. Пізніше — лише через адміністратора.`
+              : 'Скасувати замовлення можна до кінця прийому — червоним хрестиком біля учня.'}
           </>
         }
         confirmLabel="Замовити"
         busy={submit.isPending}
         onConfirm={() => submit.mutate()}
+      />
+
+      <ConfirmDialog
+        open={toCancel !== null}
+        onOpenChange={(open) => !open && setToCancel(null)}
+        title={`Скасувати замовлення для ${toCancel?.name ?? ''}?`}
+        description={
+          <>
+            {activeDay
+              ? `На ${formatDateWithWeekday(activeDay)} блюдо для ${toCancel?.name ?? ''} не готуватимуть. `
+              : ''}
+            Замовити знову можна, поки триває прийом
+            {dayInfo ? ` (до ${formatCutoff(dayInfo.cutoff_at)})` : ''}.
+          </>
+        }
+        confirmLabel="Скасувати замовлення"
+        cancelLabel="Залишити"
+        destructive
+        busy={cancel.isPending}
+        onConfirm={() => toCancel && cancel.mutate(toCancel)}
       />
     </div>
   )

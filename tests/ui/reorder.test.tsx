@@ -13,6 +13,7 @@ const api = vi.hoisted(() => ({
   areOrdersOpen: vi.fn(),
   listOrdersPlainOfClass: vi.fn(),
   placeOrder: vi.fn(),
+  cancelOrder: vi.fn(),
 }))
 
 vi.mock('@/api/settings', () => ({ getSettings: vi.fn(async () => ({ current_year: '2026/2027' })) }))
@@ -26,6 +27,7 @@ vi.mock('@/api/menu', () => ({
 vi.mock('@/api/orders', () => ({
   listOrdersPlainOfClass: api.listOrdersPlainOfClass,
   placeOrder: api.placeOrder,
+  cancelOrder: api.cancelOrder,
 }))
 
 const { default: ReorderPage } = await import('@/pages/admin/ReorderPage')
@@ -85,7 +87,7 @@ describe('дозамовлення', () => {
 
     const ordered = (await screen.findByText('Бойко Анна')).closest('tr') as HTMLElement
     expect(within(ordered).getByText('Замовлено')).toBeInTheDocument()
-    expect(within(ordered).queryByRole('button')).not.toBeInTheDocument()
+    expect(within(ordered).queryByRole('button', { name: /Дозамовити/ })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Дозамовити для Мороз Злата' })).toBeEnabled()
     expect(api.listOrdersPlainOfClass).toHaveBeenCalledWith('c7', today)
   })
@@ -141,5 +143,31 @@ describe('дозамовлення', () => {
     expect(await screen.findByText('Для 1–4 класів для 1-А на цей день')).toBeInTheDocument()
     expect(screen.getByText('Сирники')).toBeInTheDocument()
     expect(api.getClassMenu).toHaveBeenCalledWith(today, 'c1')
+  })
+
+  // Адміністрація скасовує будь-коли, але після дедлайну попереджаємо: кухня
+  // могла вже порахувати порції.
+  it('скасовує замовлення й після дедлайну — з попередженням для кухні', async () => {
+    api.cancelOrder.mockResolvedValue(undefined)
+    renderWithProviders(<ReorderPage />, { role: 'admin' })
+    await chooseClass('7-А')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Скасувати замовлення для Бойко Анна' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText(/кухня могла порахувати порції/)).toBeInTheDocument()
+    expect(api.cancelOrder).not.toHaveBeenCalled()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Скасувати замовлення' }))
+    await vi.waitFor(() => expect(api.cancelOrder).toHaveBeenCalledWith('o1'))
+  })
+
+  it('до дедлайну попередження про кухню немає', async () => {
+    api.areOrdersOpen.mockResolvedValue(true)
+    renderWithProviders(<ReorderPage />, { role: 'admin' })
+    await chooseClass('7-А')
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Скасувати замовлення для Бойко Анна' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).queryByText(/кухня могла порахувати порції/)).not.toBeInTheDocument()
   })
 })

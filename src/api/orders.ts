@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase'
 import { unwrap, unwrapMaybe } from './helpers'
-import { humanError } from '@/lib/errors'
+import { humanError, humanErrorWith } from '@/lib/errors'
 import type { Dish, MenuItem, Order, OrderItem } from '@/types/database'
 
 export interface OrderWithItems extends Order {
@@ -81,10 +81,22 @@ export async function listOrdersOfDay(menuDate: string): Promise<OrderWithItems[
   ) as unknown as OrderWithItems[]
 }
 
-/** Скасування — єдина зміна замовлення, і лише в адміністрації. */
+/**
+ * Скасування — єдина зміна замовлення. Права перевіряє сервер (cancel_order):
+ * адміністрація — будь-коли, класний керівник — свого класу до дедлайну.
+ * Відмову сервер пояснює сам («Час скасування … минув»).
+ */
 export async function cancelOrder(orderId: string): Promise<void> {
-  const { error } = await supabase.from('orders').delete().eq('id', orderId)
-  if (error) throw new Error(humanError(error, 'Не вдалося скасувати замовлення.'))
+  const { error } = await supabase.rpc('cancel_order', { p_order_id: orderId })
+  if (error) {
+    throw new Error(
+      humanErrorWith(
+        error,
+        { PGRST202: 'Скасування ще не налаштоване на сервері — потрібна міграція бази.' },
+        'Не вдалося скасувати замовлення.',
+      ),
+    )
+  }
 }
 
 // ---------------------------------------------------------------------------

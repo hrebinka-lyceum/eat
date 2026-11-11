@@ -1,12 +1,12 @@
 import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { CircleCheck, Clock, Search, Star } from 'lucide-react'
+import { CircleCheck, Clock, Search, Star, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { getSettings } from '@/api/settings'
 import { listClasses } from '@/api/classes'
 import { listStudentsOfClass } from '@/api/students'
 import { areOrdersOpen, getClassMenu, listMenuDays } from '@/api/menu'
-import { listOrdersPlainOfClass, placeOrder } from '@/api/orders'
+import { cancelOrder, listOrdersPlainOfClass, placeOrder } from '@/api/orders'
 import { qk } from '@/lib/queryKeys'
 import { humanError } from '@/lib/errors'
 import { shiftIso } from '@/lib/dates'
@@ -44,7 +44,9 @@ import type { Student } from '@/types/database'
 const DAYS_AHEAD = 30
 
 /**
- * Дозамовлення: адміністрація замовляє за учня, коли керівник не встиг.
+ * Дозамовлення й скасування: адміністрація замовляє за учня, коли керівник не
+ * встиг, або скасовує замовлення (будь-коли — після дедлайну з попередженням,
+ * що кухня вже могла порахувати порції).
  *
  * Шлях «клас → учень» замість пошуку за прізвищем: дозамовляють зазвичай
  * за дзвінком «у 7-А ще двоє прийшли», і прізвище тут не перше, що відомо.
@@ -58,6 +60,7 @@ export default function ReorderPage() {
   const [classId, setClassId] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [target, setTarget] = useState<Student | null>(null)
+  const [toCancel, setToCancel] = useState<{ orderId: string; name: string } | null>(null)
 
   const settingsQuery = useQuery({ queryKey: qk.settings(), queryFn: getSettings })
   const currentYear = settingsQuery.data?.current_year
@@ -137,6 +140,21 @@ export default function ReorderPage() {
     },
   })
 
+  const cancel = useMutation({
+    mutationFn: (item: { orderId: string; name: string }) => cancelOrder(item.orderId),
+    onSuccess: async (_data, item) => {
+      setToCancel(null)
+      toast.success(`Замовлення для ${item.name} скасовано`)
+      await queryClient.invalidateQueries({ queryKey: ['orders-of-class'] })
+      await queryClient.invalidateQueries({ queryKey: ['orders-of-student'] })
+      await queryClient.invalidateQueries({ queryKey: ['stats'] })
+    },
+    onError: (err) => {
+      setToCancel(null)
+      toast.error(humanError(err, 'Не вдалося скасувати замовлення.'))
+    },
+  })
+
   const error = settingsQuery.error ?? classesQuery.error ?? daysQuery.error ?? itemsQuery.error
   const classes = classesQuery.data ?? []
   const chosenClassName = classes.find((klass) => klass.id === classId)?.name ?? ''
@@ -144,8 +162,8 @@ export default function ReorderPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Дозамовити"
-        description="Замовлення за учня, якщо керівник не встиг. Після дедлайну воно позначається як пізнє."
+        title="Дозамовити/скасувати"
+        description="Замовлення за учня, якщо керівник не встиг, і скасування замовлень. Після дедлайну замовлення позначається як пізнє."
       />
 
       {error ? <ErrorState error={error} /> : null}
@@ -227,7 +245,7 @@ export default function ReorderPage() {
           ) : null}
 
           {!classId ? (
-            <EmptyState title="Спершу оберіть клас" hint="Далі з’явиться список учнів, і біля кожного — кнопка «Дозамовити»." />
+            <EmptyState title="Спершу оберіть клас" hint="Далі з’явиться список учнів: біля кожного — кнопка «Дозамовити» або червоний хрестик, щоб скасувати замовлення." />
           ) : (
             <section className="space-y-3">
               <div className="space-y-2">
@@ -282,11 +300,24 @@ export default function ReorderPage() {
                             </TableCell>
                             <TableCell>
                               {existing ? (
-                                <span className="inline-flex items-center gap-1.5 text-sm">
-                                  <CircleCheck className="size-4 text-primary" aria-hidden />
-                                  Замовлено
-                                  {existing.after_cutoff ? <Badge variant="secondary">пізнє</Badge> : null}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                  <span className="inline-flex items-center gap-1.5 text-sm">
+                                    <CircleCheck className="size-4 text-primary" aria-hidden />
+                                    Замовлено
+                                    {existing.after_cutoff ? <Badge variant="secondary">пізнє</Badge> : null}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                    aria-label={`Скасувати замовлення для ${name}`}
+                                    title="Скасувати замовлення"
+                                    disabled={cancel.isPending}
+                                    onClick={() => setToCancel({ orderId: existing.id, name })}
+                                  >
+                                    <X className="size-4" aria-hidden />
+                                  </Button>
+                                </div>
                               ) : (
                                 <Button
                                   size="sm"
@@ -322,12 +353,38 @@ export default function ReorderPage() {
                 На {formatDateWithWeekday(activeDate)}: {dishNames.join(', ')}.
               </p>
               {willBeLate ? <p>Прийом уже закрито — замовлення позначиться як пізнє.</p> : null}
-              <p>Скасувати замовлення можна в картці учня («Пошук учня» → «Замовлення»).</p>
+              <p>Скасувати його можна тут же — червоним хрестиком біля учня.</p>
             </div>
           }
           confirmLabel="Дозамовити"
           busy={order.isPending}
           onConfirm={() => order.mutate(target)}
+        />
+      ) : null}
+
+      {toCancel && activeDate ? (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => !open && setToCancel(null)}
+          title={`Скасувати замовлення для ${toCancel.name}?`}
+          description={
+            <div className="space-y-2">
+              <p>
+                На {formatDateWithWeekday(activeDate)} блюдо для {toCancel.name} не готуватимуть.
+              </p>
+              {willBeLate ? (
+                <p>
+                  Прийом на цей день уже закрито — кухня могла порахувати порції. Попередьте її
+                  про скасування.
+                </p>
+              ) : null}
+            </div>
+          }
+          confirmLabel="Скасувати замовлення"
+          cancelLabel="Залишити"
+          destructive
+          busy={cancel.isPending}
+          onConfirm={() => cancel.mutate(toCancel)}
         />
       ) : null}
     </div>

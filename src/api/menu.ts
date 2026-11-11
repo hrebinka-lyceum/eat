@@ -199,7 +199,7 @@ async function assignmentsOf(classId: string, dates: string[]): Promise<Assignme
   ) as unknown as Assignment[]
 }
 
-/** Склад меню класу на день, без цін — для керівника, учня й «Дозамовити». */
+/** Склад меню класу на день, без цін — для керівника, учня й «Дозамовити/скасувати». */
 export async function getClassMenu(menuDate: string, classId: string): Promise<ClassMenu> {
   const [assignment] = await assignmentsOf(classId, [menuDate])
   const special = assignment?.special_menus ?? null

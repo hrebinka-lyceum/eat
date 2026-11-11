@@ -6,7 +6,7 @@ import { hasMoney, renderWithProviders } from '../helpers'
 const {
   getSettings, getClassOfTeacher, listStudentsOfClass,
   listMenuDays, getClassMenu, areOrdersOpen,
-  listOrdersPlainOfClass, placeOrder,
+  listOrdersPlainOfClass, placeOrder, cancelOrder,
 } = vi.hoisted(() => ({
   getSettings: vi.fn(),
   getClassOfTeacher: vi.fn(),
@@ -16,13 +16,14 @@ const {
   areOrdersOpen: vi.fn(),
   listOrdersPlainOfClass: vi.fn(),
   placeOrder: vi.fn(),
+  cancelOrder: vi.fn(),
 }))
 
 vi.mock('@/api/settings', () => ({ getSettings }))
 vi.mock('@/api/classes', () => ({ getClassOfTeacher }))
 vi.mock('@/api/students', () => ({ listStudentsOfClass }))
 vi.mock('@/api/menu', () => ({ listMenuDays, getClassMenu, areOrdersOpen }))
-vi.mock('@/api/orders', () => ({ listOrdersPlainOfClass, placeOrder }))
+vi.mock('@/api/orders', () => ({ listOrdersPlainOfClass, placeOrder, cancelOrder }))
 
 const { default: ClassOrdersPage } = await import('@/pages/teacher/ClassOrdersPage')
 
@@ -134,7 +135,8 @@ describe('замовлення за клас', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Замовити' }))
 
     const dialog = await screen.findByRole('dialog')
-    expect(within(dialog).getByText(/Замовлення незмінне/)).toBeInTheDocument()
+    // Керівник знає, до котрої години ще можна передумати.
+    expect(within(dialog).getByText(/Скасувати замовлення можна до .* червоним хрестиком/)).toBeInTheDocument()
     await userEvent.click(within(dialog).getByRole('button', { name: 'Замовити' }))
 
     await waitFor(() => expect(placeOrder).toHaveBeenCalledTimes(2))
@@ -219,5 +221,50 @@ describe('замовлення за клас', () => {
       await screen.findByText('Спеціальне меню для вашого класу на цей день ще не складено'),
     ).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  // Скасування — до того самого часу, що й замовлення: червоний хрестик біля
+  // «Замовлено» і обов'язкове підтвердження.
+  describe('скасування', () => {
+    const ordered = {
+      id: 'o-sid', menu_date: DATE, student_id: 's3', class_id: 'c1',
+      privileged_at_order: false, after_cutoff: false, created_at: DATE,
+      order_items: [{ id: 'oi1', menu_items: { id: 'mi1', dishes: { id: 'd1', name: 'Борщ український', category: 'first' } } }],
+    }
+
+    it('до дедлайну хрестик скасовує замовлення лише після підтвердження', async () => {
+      listOrdersPlainOfClass.mockResolvedValue([ordered])
+      cancelOrder.mockResolvedValue(undefined)
+      renderPage()
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Скасувати замовлення для Сидоренко Тест' }))
+      const dialog = await screen.findByRole('dialog')
+      expect(within(dialog).getByText(/блюдо для Сидоренко Тест не готуватимуть/)).toBeInTheDocument()
+      expect(cancelOrder).not.toHaveBeenCalled()
+
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Скасувати замовлення' }))
+      await waitFor(() => expect(cancelOrder).toHaveBeenCalledWith('o-sid'))
+    })
+
+    it('«Залишити» закриває вікно й нічого не скасовує', async () => {
+      listOrdersPlainOfClass.mockResolvedValue([ordered])
+      renderPage()
+
+      await userEvent.click(await screen.findByRole('button', { name: 'Скасувати замовлення для Сидоренко Тест' }))
+      await userEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Залишити' }))
+
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(cancelOrder).not.toHaveBeenCalled()
+    })
+
+    it('після дедлайну хрестика немає — скасовує лише адміністратор', async () => {
+      areOrdersOpen.mockResolvedValue(false)
+      listOrdersPlainOfClass.mockResolvedValue([ordered])
+      renderPage()
+
+      await screen.findByText('Сидоренко Тест')
+      await screen.findByText(/Час прийому замовлень на цей день минув/)
+      expect(screen.queryByRole('button', { name: /Скасувати замовлення/ })).not.toBeInTheDocument()
+    })
   })
 })
